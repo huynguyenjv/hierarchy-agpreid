@@ -225,6 +225,48 @@ def main() -> None:
 
     all_scores = [e["map"] for e in results.values() if e["reliable"]]
     spread = max(all_scores) - min(all_scores)
+
+    # Per-camera means expose whether one bad camera is carrying the aggregate.
+    # A gap that only exists because a single sensor is hard is a hardware
+    # story, not a view story, so the aggregate is recomputed without the worst
+    # camera before anything is concluded from it.
+    participation = defaultdict(list)
+    for entry in results.values():
+        if not entry["reliable"]:
+            continue
+        participation[entry["query_camera"]].append(entry["map"])
+        participation[entry["gallery_camera"]].append(entry["map"])
+    per_camera_mean = {
+        camera: float(np.mean(scores)) for camera, scores in participation.items()
+    }
+    worst_camera = min(per_camera_mean, key=per_camera_mean.get)
+
+    def kind_mean(kind: str, exclude: int | None = None) -> float | None:
+        scores = [
+            e["map"] for e in results.values()
+            if e["reliable"] and e["kind"] == kind
+            and (exclude is None or exclude not in (e["query_camera"], e["gallery_camera"]))
+        ]
+        return float(np.mean(scores)) if scores else None
+
+    robust = {}
+    for kind in ("aerial-ground", "aerial-aerial", "ground-ground"):
+        value = kind_mean(kind, exclude=worst_camera)
+        if value is not None:
+            robust[kind] = value
+    robust_cross = robust.get("aerial-ground")
+    robust_same_parts = [
+        kind_mean(kind, exclude=worst_camera)
+        for kind in ("aerial-aerial", "ground-ground")
+    ]
+    robust_same_parts = [v for v in robust_same_parts if v is not None]
+    robust_same = float(np.mean(robust_same_parts)) if robust_same_parts else None
+
+    print(f"\nweakest camera overall: Cam{worst_camera} "
+          f"({per_camera_mean[worst_camera]:.2%} mean over its 24 pairs)")
+    if robust_cross is not None and robust_same is not None:
+        print(f"excluding it: aerial-ground {robust_cross:.2%} vs same-platform "
+              f"{robust_same:.2%} -> gap {robust_same - robust_cross:+.2%}")
     cross = summary.get("aerial-ground", {}).get("mean")
     same_scores = by_kind.get("aerial-aerial", []) + by_kind.get("ground-ground", [])
     same = float(np.mean(same_scores)) if same_scores else None
@@ -252,6 +294,11 @@ def main() -> None:
         "shared_identities": {f"Cam{a}->Cam{b}": n for (a, b), n in shared.items()},
         "min_shared_identities": MIN_SHARED_IDENTITIES,
         "spread": spread, "aerial_ground_mean": cross, "same_platform_mean": same,
+        "per_camera_mean": per_camera_mean,
+        "weakest_camera": worst_camera,
+        "robust_by_kind": robust,
+        "robust_aerial_ground_mean": robust_cross,
+        "robust_same_platform_mean": robust_same,
         "verdict": verdict,
     }
     base = os.path.splitext(args.output)[0]
