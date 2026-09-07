@@ -1,0 +1,77 @@
+{
+  "checkpoint": "outputs/transreid/best_model.pth",
+  "random_init": false,
+  "trained_on": "train_all",
+  "pairs": {
+    "C0->C2": {
+      "query_camera": 0,
+      "gallery_camera": 2,
+      "query_platform": "aerial",
+      "gallery_platform": "wearable",
+      "cross_platform": true,
+      "map": 0.7656371203988586,
+      "rank1": 0.8439306616783142,
+      "identities": 519,
+      "gallery_images": 15252
+    },
+    "C0->C3": {
+      "query_camera": 0,
+      "gallery_camera": 3,
+      "query_platform": "aerial",
+      "gallery_platform": "cctv",
+      "cross_platform": true,
+      "map": 0.7389319661154304,
+      "rank1": 0.8614231944084167,
+      "identities": 534,
+      "gallery_images": 8158
+    },
+    "C2->C0": {
+      "query_camera": 2,
+      "gallery_camera": 0,
+      "query_platform": "wearable",
+      "gallery_platform": "aerial",
+      "cross_platform": true,
+      "map": 0.7118680566896451,
+      "rank1": 0.8092485666275024,
+      "identities": 519,
+      "gallery_images": 25562
+    },
+    "C2->C3": {
+      "query_camera": 2,
+      "gallery_camera": 3,
+      "query_platform": "wearable",
+      "gallery_platform": "cctv",
+      "cross_platform": false,
+      "map": 0.7191841819109397,
+      "rank1": 0.8285714387893677,
+      "identities": 245,
+      "gallery_images": 8158
+    },
+    "C3->C0": {
+      "query_camera": 3,
+      "gallery_camera": 0,
+      "query_platform": "cctv",
+      "gallery_platform": "aerial",
+      "cross_platform": true,
+      "map": 0.7107297064511882,
+      "rank1": 0.7977527976036072,
+      "identities": 534,
+      "gallery_images": 25562
+    },
+    "C3->C2": {
+      "query_camera": 3,
+      "gallery_camera": 2,
+      "query_platform": "cctv",
+      "gallery_platform": "wearable",
+      "cross_platform": false,
+      "map": 0.7125980467989711,
+      "rank1": 0.800000011920929,
+      "identities": 245,
+      "gallery_images": 15252
+    }
+  },
+  "spread": 0.0549074139476704,
+  "aerial_ground_mean": 0.7317917124137805,
+  "ground_ground_mean": 0.7158911143549553,
+  "verdict": "UNEVEN but not along the aerial-ground axis; hardest pair is C3->C0"
+}
