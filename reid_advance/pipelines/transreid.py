@@ -53,7 +53,12 @@ class TransReIDSmall(nn.Module):
         if dim != cfg.embed_dim:
             raise ValueError(f"Expected embedding dimension {cfg.embed_dim}, got {dim}")
 
-        self.sie = nn.Embedding(3, dim) if cfg.transreid_sie else None
+        # AG-ReID.v2 has three cameras and maps them through camera_to_view;
+        # other datasets (CARGO: 13 cameras) set sie_num_views and pass camera
+        # ids straight through. The default keeps the AG-ReID.v2 behaviour.
+        self.sie_num_views = int(getattr(cfg, "sie_num_views", 3))
+        self.sie_identity_map = bool(getattr(cfg, "sie_identity_map", False))
+        self.sie = nn.Embedding(self.sie_num_views, dim) if cfg.transreid_sie else None
         if self.sie is not None:
             nn.init.trunc_normal_(self.sie.weight, std=0.02)
         self.global_bn = nn.BatchNorm1d(dim)
@@ -86,8 +91,8 @@ class TransReIDSmall(nn.Module):
         x = self.encoder.patch_drop(x)
         x = self.encoder.norm_pre(x)
         if self.sie is not None:
-            views = camera_to_view(camera_ids)
-            x = x + self.sie(views).unsqueeze(1)
+            views = camera_ids if self.sie_identity_map else camera_to_view(camera_ids)
+            x = x + self.sie(views.clamp(0, self.sie_num_views - 1)).unsqueeze(1)
         x = self.encoder.blocks(x)
         return self.encoder.norm(x)
 

@@ -11,6 +11,7 @@ os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 
 from reid_advance.config import (
     BNNeckConfig,
+    CargoConfig,
     PersonViTFineTuneConfig,
     ProposedConfig,
     ProposedV2Config,
@@ -38,6 +39,7 @@ def parse_args():
             "proposed_v3",
             "proposed-v3",
             "proposed_v3_ft",
+            "cargo",
             "proposed-v3-ft",
         ),
     )
@@ -66,6 +68,10 @@ def build_experiment(method):
         )
 
         return PersonViTFineTuneConfig(), train_personvit_finetune
+    if method == "cargo":
+        from reid_advance.pipelines.cargo_transreid import train_cargo
+
+        return CargoConfig(), train_cargo
     if method == "transreid":
         from reid_advance.pipelines.transreid import train_transreid
 

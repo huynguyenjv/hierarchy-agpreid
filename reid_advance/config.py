@@ -323,3 +323,31 @@ class ProposedV3FineTuneConfig(ProposedV3Config):
     backbone_learning_rate: float = 1e-6
     head_learning_rate: float = 1e-5
     ema_decay: float = 0.9995
+
+
+@dataclass
+class CargoConfig(TransReIDConfig):
+    """CARGO trained with the exact AG-ReID.v2 recipe, for a comparable matrix.
+
+    The point of running CARGO at all is to tell whether the flat camera-pair
+    matrix on AG-ReID.v2 reflects that dataset or aerial-ground ReID after
+    ordinary supervision. That comparison only holds if the two are trained the
+    same way, so everything inherited from TransReIDConfig is left alone; only
+    what CARGO structurally requires is overridden.
+    """
+
+    data_root: str = "D:/datasets/cargo"
+    train_dir: str = "train"
+    output_dir: str = "./outputs/cargo"
+    # CARGO ships 13 real cameras (1-5 aerial, 6-13 ground) rather than
+    # AG-ReID.v2's three, and its ids are already dense, so SIE indexes them
+    # directly instead of going through camera_to_view.
+    sie_num_views: int = 14
+    sie_identity_map: bool = True
+    # 2,500 training identities against AG-ReID.v2's 807.
+    expected_train_identities: int = 2500
+    strict_dataset_integrity: bool = False
+    # 10 min/epoch at batch 32; 30 epochs converges and keeps the run to ~5h.
+    # Absolute mAP is not the point here, the camera-pair spread is.
+    epochs: int = 30
+    eval_interval: int = 10
