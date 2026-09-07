@@ -353,3 +353,5 @@ class CargoConfig(TransReIDConfig):
     # Evaluate every 5 epochs so the camera-pair matrix can be recomputed at
     # several points; convergence is judged by the matrix settling, not by mAP.
     eval_interval: int = 5
+    # Pick up from outputs/cargo/last.pth if a previous run was interrupted.
+    resume: bool = True

@@ -94,9 +94,27 @@ def train_cargo(cfg: CargoConfig):
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     checkpoint = os.path.join(cfg.output_dir, cfg.checkpoint_name)
+    resume_path = os.path.join(cfg.output_dir, "last.pth")
     best_map, best_rank1, best_epoch = -1.0, -1.0, -1
+    start_epoch = 1
 
-    for epoch in range(1, cfg.epochs + 1):
+    # A 2.7-hour run on a shared machine will occasionally be interrupted, and
+    # losing everything because the first eval had not been reached yet is a
+    # waste this loop can simply avoid.
+    if getattr(cfg, "resume", True) and os.path.exists(resume_path):
+        saved = torch.load(resume_path, map_location=cfg.device, weights_only=False)
+        model.load_state_dict(saved["model"])
+        optimizer.load_state_dict(saved["optimizer"])
+        scheduler.load_state_dict(saved["scheduler"])
+        scaler.load_state_dict(saved["scaler"])
+        start_epoch = saved["epoch"] + 1
+        best_map = saved.get("best_map", -1.0)
+        best_rank1 = saved.get("best_rank1", -1.0)
+        best_epoch = saved.get("best_epoch", -1)
+        print(f"resumed from {resume_path} at epoch {saved['epoch']}, "
+              f"continuing at {start_epoch}")
+
+    for epoch in range(start_epoch, cfg.epochs + 1):
         model.train()
         sampler.set_epoch(epoch)
         optimizer.zero_grad(set_to_none=True)
@@ -126,7 +144,26 @@ def train_cargo(cfg: CargoConfig):
             running += loss.item() * cfg.grad_accum_steps
             progress.set_postfix(loss=f"{running / step:.4f}")
         scheduler.step()
-        print(f"CARGO epoch {epoch:03d} | loss {running / len(loader):.4f}")
+        print(f"CARGO epoch {epoch:03d} | loss {running / len(loader):.4f}", flush=True)
+
+        # Written every epoch, not just on eval epochs, so an interruption costs
+        # at most one epoch instead of everything since the last evaluation.
+        torch.save(
+            {
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict(),
+                "scaler": scaler.state_dict(),
+                "epoch": epoch,
+                "best_map": best_map,
+                "best_rank1": best_rank1,
+                "best_epoch": best_epoch,
+                "config": {k: v for k, v in cfg.__dict__.items()},
+                "dataset": "CARGO",
+                "train_identity_count": dataset.num_classes,
+            },
+            resume_path,
+        )
 
         if epoch % cfg.eval_interval == 0 or epoch == cfg.epochs:
             rank1, mean_ap = evaluate(model, cfg, query_loader, gallery_loader)
