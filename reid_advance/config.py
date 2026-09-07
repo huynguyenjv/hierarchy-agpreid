@@ -350,4 +350,6 @@ class CargoConfig(TransReIDConfig):
     # 10 min/epoch at batch 32; 30 epochs converges and keeps the run to ~5h.
     # Absolute mAP is not the point here, the camera-pair spread is.
     epochs: int = 30
-    eval_interval: int = 10
+    # Evaluate every 5 epochs so the camera-pair matrix can be recomputed at
+    # several points; convergence is judged by the matrix settling, not by mAP.
+    eval_interval: int = 5

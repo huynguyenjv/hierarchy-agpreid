@@ -137,3 +137,25 @@ def test_train_split_has_the_expected_identity_count(train_items):
 def test_track_key_maps_folder_to_mat_index():
     path = os.path.join("AG-ReID.v2", "train_all", "P0000T02140A0", "P0000T02140A0C0F1.jpg")
     assert track_key(path) == "0000021400"
+
+
+def test_no_identity_has_two_aerial_cameras(train_items):
+    """AG-ReID.v2 cannot support an aerial same-view control at all.
+
+    Standard ReID evaluation discards same-camera hits, so a same-view score
+    must still be cross-camera. With a single aerial camera (C0) there is no
+    such pair, and no construction recovers one. This is the evidence behind
+    docs/same_view_control_feasibility.md; if it ever fails, that document and
+    the justification for adding CARGO both need revisiting.
+    """
+    aerial_cameras = defaultdict(set)
+    for path, pid in train_items:
+        camera = parse_camera_id(path)
+        if platform_of_path(path) == "aerial":
+            aerial_cameras[pid].add(camera)
+
+    with_two = {pid for pid, cams in aerial_cameras.items() if len(cams) >= 2}
+    assert not with_two, (
+        f"{len(with_two)} identities have two aerial cameras; AG-ReID.v2 was "
+        "believed to have exactly one (C0)"
+    )

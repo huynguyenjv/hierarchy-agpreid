@@ -102,6 +102,30 @@ def score_pair(features, pids, cams, query_cam, gallery_cam, seed=42, max_querie
     }
 
 
+#: Below this many identities in common, a pair's mAP says more about an empty
+#: gallery than about view difficulty, so it is reported but not interpreted.
+MIN_SHARED_IDENTITIES = 100
+
+
+def shared_identity_matrix(pids, cams) -> dict[tuple[int, int], int]:
+    """Identities each camera pair has in common.
+
+    A camera pair that shares few identities has almost no true matches to
+    retrieve, so its mAP measures gallery emptiness rather than view
+    difficulty. This is the same failure that produced the bogus AG-ReID.v2
+    same-view numbers, wearing different clothes, so it is counted explicitly
+    and printed next to the mAP rather than trusted implicitly.
+    """
+    per_camera = {
+        int(camera): set(pids[cams == camera].tolist())
+        for camera in sorted(set(cams.tolist()))
+    }
+    return {
+        (left, right): len(per_camera[left] & per_camera[right])
+        for left, right in itertools.permutations(sorted(per_camera), 2)
+    }
+
+
 def pair_kind(query_cam: int, gallery_cam: int) -> str:
     left, right = platform_of_camera(query_cam), platform_of_camera(gallery_cam)
     if left != right:
@@ -153,19 +177,38 @@ def main() -> None:
     cameras = sorted(set(cams.tolist()))
     print(f"cameras present: {cameras}")
 
+    shared = shared_identity_matrix(pids, cams)
+    counts = sorted(shared.values())
+    thin = [pair for pair, count in shared.items() if count < MIN_SHARED_IDENTITIES]
+    print(f"shared identities per pair: min {counts[0]}, median "
+          f"{counts[len(counts) // 2]}, max {counts[-1]}")
+    if thin:
+        print(f"  {len(thin)} of {len(shared)} pairs share fewer than "
+              f"{MIN_SHARED_IDENTITIES} identities and will be excluded from the "
+              "aggregates")
+    else:
+        print(f"  all {len(shared)} pairs clear the {MIN_SHARED_IDENTITIES}-identity "
+              "floor, so no cell is an empty-gallery artifact")
+
     results = {}
     for query_cam, gallery_cam in itertools.permutations(cameras, 2):
         entry = score_pair(features, pids, cams, query_cam, gallery_cam)
         if entry is None:
             continue
+        common = shared[(query_cam, gallery_cam)]
         results[f"Cam{query_cam}->Cam{gallery_cam}"] = {
             "query_camera": query_cam, "gallery_camera": gallery_cam,
-            "kind": pair_kind(query_cam, gallery_cam), **entry,
+            "kind": pair_kind(query_cam, gallery_cam),
+            "shared_identities": common,
+            "reliable": common >= MIN_SHARED_IDENTITIES,
+            **entry,
         }
 
+    # Aggregate only over cells with enough true matches to mean anything.
     by_kind = defaultdict(list)
     for entry in results.values():
-        by_kind[entry["kind"]].append(entry["map"])
+        if entry["reliable"]:
+            by_kind[entry["kind"]].append(entry["map"])
 
     print(f"\n{'kind':<16}{'pairs':>7}{'mean mAP':>10}{'min':>9}{'max':>9}")
     summary = {}
@@ -180,7 +223,7 @@ def main() -> None:
         print(f"{kind:<16}{len(scores):>7}{np.mean(scores):>9.2%}"
               f"{min(scores):>9.2%}{max(scores):>9.2%}")
 
-    all_scores = [entry["map"] for entry in results.values()]
+    all_scores = [e["map"] for e in results.values() if e["reliable"]]
     spread = max(all_scores) - min(all_scores)
     cross = summary.get("aerial-ground", {}).get("mean")
     same_scores = by_kind.get("aerial-aerial", []) + by_kind.get("ground-ground", [])
@@ -206,6 +249,8 @@ def main() -> None:
         "checkpoint": args.checkpoint, "split": args.split,
         "epoch": state.get("epoch"), "reported_map": state.get("mAP"),
         "pairs": results, "by_kind": summary,
+        "shared_identities": {f"Cam{a}->Cam{b}": n for (a, b), n in shared.items()},
+        "min_shared_identities": MIN_SHARED_IDENTITIES,
         "spread": spread, "aerial_ground_mean": cross, "same_platform_mean": same,
         "verdict": verdict,
     }
@@ -234,15 +279,47 @@ def main() -> None:
             "single aerial camera, so aerial same-view retrieval does not exist "
             "there. CARGO's five aerial cameras make this the stricter test.\n\n"
         )
+        handle.write("## Shared identities per camera pair\n\n")
+        handle.write(
+            "Read this before the mAP table. A pair sharing few identities has "
+            "almost no true matches to retrieve, so its mAP would measure an "
+            "empty gallery rather than view difficulty - the same failure mode "
+            "that produced the discarded AG-ReID.v2 same-view figures. Cells "
+            f"below {MIN_SHARED_IDENTITIES} shared identities are excluded from "
+            "every aggregate above.\n\n"
+        )
+        handle.write("| | " + " | ".join(f"Cam{c}" for c in cameras) + " |\n")
+        handle.write("|---" * (len(cameras) + 1) + "|\n")
+        for left in cameras:
+            cells = []
+            for right in cameras:
+                if left == right:
+                    cells.append("-")
+                else:
+                    count = shared[(left, right)]
+                    cells.append(f"{count}" if count >= MIN_SHARED_IDENTITIES
+                                 else f"**{count}**")
+            handle.write(f"| **Cam{left}** | " + " | ".join(cells) + " |\n")
+        handle.write(
+            f"\nRange: {counts[0]} to {counts[-1]} identities per pair. "
+            + (f"{len(thin)} pair(s) fall below the floor and are struck from the "
+               "aggregates.\n\n" if thin else
+               "Every pair clears the floor, so no cell in the mAP table is an "
+               "empty-gallery artifact.\n\n")
+        )
+
         handle.write("## Hardest and easiest pairs\n\n")
-        handle.write("| query | gallery | kind | mAP | Rank-1 | #IDs |\n")
-        handle.write("|---|---|---|---|---|---|\n")
-        ordered = sorted(results.items(), key=lambda kv: kv[1]["map"])
+        handle.write("| query | gallery | kind | mAP | Rank-1 | #IDs scored | shared IDs |\n")
+        handle.write("|---|---|---|---|---|---|---|\n")
+        ordered = sorted(
+            (kv for kv in results.items() if kv[1]["reliable"]),
+            key=lambda kv: kv[1]["map"],
+        )
         for key, entry in ordered[:8] + ordered[-4:]:
             handle.write(
                 f"| Cam{entry['query_camera']} | Cam{entry['gallery_camera']} | "
                 f"{entry['kind']} | {entry['map']:.2%} | {entry['rank1']:.2%} | "
-                f"{entry['identities']} |\n"
+                f"{entry['identities']} | {entry['shared_identities']} |\n"
             )
         handle.write(f"\n- spread across all {len(results)} pairs: **{spread:.2%}**\n")
         if cross is not None and same is not None:

@@ -131,6 +131,23 @@ def train_cargo(cfg: CargoConfig):
         if epoch % cfg.eval_interval == 0 or epoch == cfg.epochs:
             rank1, mean_ap = evaluate(model, cfg, query_loader, gallery_loader)
             print(f"CARGO epoch {epoch:03d} | Rank-1 {rank1:.2%} | mAP {mean_ap:.2%}")
+
+            # Keep every evaluated epoch under its own name. Convergence here is
+            # judged by whether the camera-pair matrix has stopped moving, not
+            # by mAP, so the matrix has to be computable at two epochs - which
+            # the best-only checkpoint would make impossible once a later epoch
+            # overwrites an earlier one.
+            snapshot = {
+                "model": model.state_dict(),
+                "config": {k: v for k, v in cfg.__dict__.items()},
+                "epoch": epoch,
+                "rank1": rank1,
+                "mAP": mean_ap,
+                "dataset": "CARGO",
+                "train_identity_count": dataset.num_classes,
+            }
+            torch.save(snapshot, os.path.join(cfg.output_dir, f"epoch_{epoch:03d}.pth"))
+
             if mean_ap > best_map:
                 best_map, best_rank1, best_epoch = mean_ap, rank1, epoch
                 torch.save(
