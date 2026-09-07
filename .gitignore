@@ -1,0 +1,6 @@
+AG-ReID.v2/*
+outputs/*
+pretrained/*
+**/__pycache__/
+*.py[cod]
+venv/

@@ -1,0 +1,320 @@
+{
+  "config": {
+    "data_root": "AG-ReID.v2",
+    "mat": "AG-ReID.v2/qut_attribute_v8.mat",
+    "encoder": "vit_small_patch16_224.augreg_in21k_ft_in1k",
+    "epochs": 12,
+    "batch_size": 128,
+    "lr": 0.0001,
+    "head_lr_multiplier": 10.0,
+    "weight_decay": 0.05,
+    "test_fraction": 0.3,
+    "num_workers": 4,
+    "seed": 42,
+    "output": "docs/vss_table.md"
+  },
+  "splits": {
+    "train_identities": 564,
+    "test_identities": 243
+  },
+  "images": {
+    "train_ground": 21593,
+    "test_ground": 8720,
+    "test_aerial": 5989
+  },
+  "scores": [
+    {
+      "name": "gender",
+      "vss": 0.7420964610288041,
+      "ground_balanced_accuracy": 0.8359915964653446,
+      "aerial_balanced_accuracy": 0.7420964610288041,
+      "ground_accuracy": 0.8361959654178674,
+      "aerial_accuracy": 0.7450553134428428,
+      "retention": 0.8876841156854466,
+      "majority_baseline": 0.507710358699296,
+      "lift_over_majority": 0.23734495474354678,
+      "support_ground": 8675,
+      "support_aerial": 5966,
+      "per_class_aerial": {
+        "0": 0.5502213142662581,
+        "1": 0.9339716077913502
+      }
+    },
+    {
+      "name": "moustache",
+      "vss": 0.5022154473692554,
+      "ground_balanced_accuracy": 0.5027555626339789,
+      "aerial_balanced_accuracy": 0.5022154473692554,
+      "ground_accuracy": 0.8568807339449541,
+      "aerial_accuracy": 0.9078310235431625,
+      "retention": 0.9989256901268405,
+      "majority_baseline": 0.9133411253965603,
+      "lift_over_majority": -0.005510101853397842,
+      "support_ground": 8720,
+      "support_aerial": 5989,
+      "per_class_aerial": {
+        "0": 0.011560693641618497,
+        "1": 0.9928702010968922
+      }
+    },
+    {
+      "name": "beard",
+      "vss": 0.4999992151963108,
+      "ground_balanced_accuracy": 0.507847957312105,
+      "aerial_balanced_accuracy": 0.4999992151963108,
+      "ground_accuracy": 0.8988532110091743,
+      "aerial_accuracy": 0.9211888462180664,
+      "retention": 0.9845450946434139,
+      "majority_baseline": 0.9230255468358658,
+      "lift_over_majority": -0.0018367006177993916,
+      "support_ground": 8720,
+      "support_aerial": 5989,
+      "per_class_aerial": {
+        "0": 0.0021691973969631237,
+        "1": 0.9978292329956585
+      }
+    },
+    {
+      "name": "head",
+      "vss": 0.47812971342383104,
+      "ground_balanced_accuracy": 0.44802362280200375,
+      "aerial_balanced_accuracy": 0.47812971342383104,
+      "ground_accuracy": 0.8536121673003803,
+      "aerial_accuracy": 0.8927304964539007,
+      "retention": 1.0671975518467967,
+      "majority_baseline": 0.5425531914893617,
+      "lift_over_majority": 0.350177304964539,
+      "support_ground": 1052,
+      "support_aerial": 1128,
+      "per_class_aerial": {
+        "0": 0.9509803921568627,
+        "1": 0.9615384615384616,
+        "2": 0.0,
+        "3": 0.0
+      }
+    },
+    {
+      "name": "lower",
+      "vss": 0.45958335195121436,
+      "ground_balanced_accuracy": 0.5355163069781583,
+      "aerial_balanced_accuracy": 0.45958335195121436,
+      "ground_accuracy": 0.6554583141409489,
+      "aerial_accuracy": 0.5308683285929396,
+      "retention": 0.8582060825459775,
+      "majority_baseline": 0.3642295465952819,
+      "lift_over_majority": 0.16663878199765775,
+      "support_ground": 8684,
+      "support_aerial": 5977,
+      "per_class_aerial": {
+        "0": 0.6007905138339921,
+        "1": 0.31958762886597936,
+        "2": 0.3504823151125402,
+        "3": 0.8353932584269663,
+        "4": 0.16042780748663102,
+        "6": 0.41140776699029125,
+        "7": 0.9459459459459459,
+        "8": 0.05263157894736842
+      }
+    },
+    {
+      "name": "hairstyle",
+      "vss": 0.41196728703334956,
+      "ground_balanced_accuracy": 0.42414455938484624,
+      "aerial_balanced_accuracy": 0.41196728703334956,
+      "ground_accuracy": 0.6307603017991875,
+      "aerial_accuracy": 0.5560399636693915,
+      "retention": 0.971289806548131,
+      "majority_baseline": 0.5049954586739328,
+      "lift_over_majority": 0.05104450499545865,
+      "support_ground": 8615,
+      "support_aerial": 5505,
+      "per_class_aerial": {
+        "0": 0.0,
+        "1": 0.6399280575539569,
+        "2": 0.10037878787878787,
+        "3": 0.8523274478330658,
+        "4": 0.46720214190093706
+      }
+    },
+    {
+      "name": "weight",
+      "vss": 0.40062715286323664,
+      "ground_balanced_accuracy": 0.3958145886103254,
+      "aerial_balanced_accuracy": 0.40062715286323664,
+      "ground_accuracy": 0.47350917431192663,
+      "aerial_accuracy": 0.4638503923860411,
+      "retention": 1.0121586328331347,
+      "majority_baseline": 0.4999165136082819,
+      "lift_over_majority": -0.03606612122224079,
+      "support_ground": 8720,
+      "support_aerial": 5989,
+      "per_class_aerial": {
+        "0": 0.5581188997338066,
+        "1": 0.46292585170340683,
+        "2": 0.18083670715249664
+      }
+    },
+    {
+      "name": "height",
+      "vss": 0.3899935566020677,
+      "ground_balanced_accuracy": 0.4171852160590296,
+      "aerial_balanced_accuracy": 0.3899935566020677,
+      "ground_accuracy": 0.4235091743119266,
+      "aerial_accuracy": 0.37635665386541994,
+      "retention": 0.9348211336110376,
+      "majority_baseline": 0.3808649190182,
+      "lift_over_majority": -0.004508265152780078,
+      "support_ground": 8720,
+      "support_aerial": 5989,
+      "per_class_aerial": {
+        "0": 0.3157894736842105,
+        "1": 0.7127588510354042,
+        "2": 0.35036496350364965,
+        "3": 0.18106093818500657
+      }
+    },
+    {
+      "name": "age",
+      "vss": 0.36536546196221953,
+      "ground_balanced_accuracy": 0.4909303120928121,
+      "aerial_balanced_accuracy": 0.36536546196221953,
+      "ground_accuracy": 0.930045871559633,
+      "aerial_accuracy": 0.9547503756887628,
+      "retention": 0.7442308062109351,
+      "majority_baseline": 0.973284354650192,
+      "lift_over_majority": -0.018533978961429276,
+      "support_ground": 8720,
+      "support_aerial": 5989,
+      "per_class_aerial": {
+        "0": 0.9780408303311031,
+        "1": 0.11805555555555555,
+        "2": 0.0
+      }
+    },
+    {
+      "name": "feet",
+      "vss": 0.3581322896699909,
+      "ground_balanced_accuracy": 0.3841396744158774,
+      "aerial_balanced_accuracy": 0.3581322896699909,
+      "ground_accuracy": 0.6821100917431193,
+      "aerial_accuracy": 0.7528802805142761,
+      "retention": 0.9322970615169253,
+      "majority_baseline": 0.7129737852730005,
+      "lift_over_majority": 0.03990649524127565,
+      "support_ground": 8720,
+      "support_aerial": 5989,
+      "per_class_aerial": {
+        "0": 0.9508196721311475,
+        "1": 0.2449255751014885,
+        "2": 0.0,
+        "3": 0.2849162011173184,
+        "4": 0.31
+      }
+    },
+    {
+      "name": "glasses",
+      "vss": 0.3422156075783991,
+      "ground_balanced_accuracy": 0.3782568194516722,
+      "aerial_balanced_accuracy": 0.3422156075783991,
+      "ground_accuracy": 0.569268897149938,
+      "aerial_accuracy": 0.5778386710053092,
+      "retention": 0.9047176150703136,
+      "majority_baseline": 0.6573043329337215,
+      "lift_over_majority": -0.07946566192841231,
+      "support_ground": 8070,
+      "support_aerial": 5839,
+      "per_class_aerial": {
+        "0": 0.0535405872193437,
+        "1": 0.14116251482799524,
+        "2": 0.8319437206878583
+      }
+    },
+    {
+      "name": "ethnic",
+      "vss": 0.33140043361560156,
+      "ground_balanced_accuracy": 0.3534330491599638,
+      "aerial_balanced_accuracy": 0.33140043361560156,
+      "ground_accuracy": 0.6608776195438231,
+      "aerial_accuracy": 0.6266911641890763,
+      "retention": 0.9376611338505859,
+      "majority_baseline": 0.6684483046600969,
+      "lift_over_majority": -0.041757140471020526,
+      "support_ground": 8637,
+      "support_aerial": 5987,
+      "per_class_aerial": {
+        "0": 0.7898550724637681,
+        "1": 0.1736111111111111,
+        "2": 0.35667107001321,
+        "3": 0.00546448087431694
+      }
+    },
+    {
+      "name": "upper",
+      "vss": 0.2662270728851763,
+      "ground_balanced_accuracy": 0.3018721031617777,
+      "aerial_balanced_accuracy": 0.2662270728851763,
+      "ground_accuracy": 0.6660550458715596,
+      "aerial_accuracy": 0.599098346969444,
+      "retention": 0.8819200916439147,
+      "majority_baseline": 0.5346468525630322,
+      "lift_over_majority": 0.06445149440641174,
+      "support_ground": 8720,
+      "support_aerial": 5989,
+      "per_class_aerial": {
+        "0": 0.8922548407245472,
+        "1": 0.23356401384083045,
+        "2": 0.0,
+        "4": 0.3160621761658031,
+        "5": 0.0,
+        "6": 0.25773195876288657,
+        "7": 0.639344262295082,
+        "8": 0.4718934911242604,
+        "9": 0.0,
+        "10": 0.11764705882352941,
+        "11": 0.0
+      }
+    },
+    {
+      "name": "bag",
+      "vss": 0.2625181521075247,
+      "ground_balanced_accuracy": 0.29014286767357605,
+      "aerial_balanced_accuracy": 0.2625181521075247,
+      "ground_accuracy": 0.5289728923153444,
+      "aerial_accuracy": 0.5017391304347826,
+      "retention": 0.9047892654141324,
+      "majority_baseline": 0.3864347826086956,
+      "lift_over_majority": 0.11530434782608695,
+      "support_ground": 8042,
+      "support_aerial": 5750,
+      "per_class_aerial": {
+        "0": 0.3726273726273726,
+        "1": 0.8348334833483348,
+        "2": 0.33947772657450076,
+        "4": 0.0,
+        "5": 0.02857142857142857,
+        "6": 0.06153846153846154,
+        "7": 0.20057859209257473
+      }
+    },
+    {
+      "name": "haircolor",
+      "vss": 0.24557698972713826,
+      "ground_balanced_accuracy": 0.2559413930354909,
+      "aerial_balanced_accuracy": 0.24557698972713826,
+      "ground_accuracy": 0.5968849644346333,
+      "aerial_accuracy": 0.551627088830255,
+      "retention": 0.9595047788658576,
+      "majority_baseline": 0.45857519788918205,
+      "lift_over_majority": 0.09305189094107297,
+      "support_ground": 8154,
+      "support_aerial": 5685,
+      "per_class_aerial": {
+        "0": 0.5470257234726688,
+        "1": 0.6808592251630227,
+        "2": 0.0,
+        "4": 0.0,
+        "5": 0.0
+      }
+    }
+  ]
+}
