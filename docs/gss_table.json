@@ -1,0 +1,173 @@
+{
+  "checkpoint": "outputs/transreid/best_model.pth",
+  "spec": {
+    "rows": 16,
+    "cols": 8,
+    "levels": [
+      1,
+      2,
+      4,
+      8
+    ]
+  },
+  "results": {
+    "exp1_aerial_to_cctv.txt": {
+      "levels": [
+        {
+          "level": 0,
+          "name": "whole",
+          "regions": 1,
+          "rows_per_region": 16,
+          "cross_view_map": 0.7112905890622201,
+          "cross_view_rank1": 0.8111205697059631,
+          "same_view_map": 0.8656491350457116,
+          "gap": 0.15435854598349152
+        },
+        {
+          "level": 1,
+          "name": "half",
+          "regions": 2,
+          "rows_per_region": 8,
+          "cross_view_map": 0.7158501016004173,
+          "cross_view_rank1": 0.8123939037322998,
+          "same_view_map": 0.864060559877357,
+          "gap": 0.14821045827693968
+        },
+        {
+          "level": 2,
+          "name": "quarter",
+          "regions": 4,
+          "rows_per_region": 4,
+          "cross_view_map": 0.7150371293047467,
+          "cross_view_rank1": 0.8136672377586365,
+          "same_view_map": 0.8646833603044132,
+          "gap": 0.14964623099966645
+        },
+        {
+          "level": 3,
+          "name": "stripe",
+          "regions": 8,
+          "rows_per_region": 2,
+          "cross_view_map": 0.7141169703689096,
+          "cross_view_rank1": 0.8128183484077454,
+          "same_view_map": 0.8643942545559401,
+          "gap": 0.15027728418703046
+        }
+      ],
+      "redundancy": [
+        [
+          1.0,
+          0.9644384384155273,
+          0.964095950126648,
+          0.9631385207176208
+        ],
+        [
+          0.9644384384155273,
+          1.0,
+          0.9998548626899719,
+          0.9995461106300354
+        ],
+        [
+          0.9640960097312927,
+          0.9998548626899719,
+          1.0,
+          0.9998440742492676
+        ],
+        [
+          0.9631385803222656,
+          0.9995460510253906,
+          0.9998440146446228,
+          1.0
+        ]
+      ]
+    },
+    "exp4_cctv_to_aerial.txt": {
+      "levels": [
+        {
+          "level": 0,
+          "name": "whole",
+          "regions": 1,
+          "rows_per_region": 16,
+          "cross_view_map": 0.7016183707826017,
+          "cross_view_rank1": 0.7929320931434631,
+          "same_view_map": 0.9282253892195639,
+          "gap": 0.22660701843696218
+        },
+        {
+          "level": 1,
+          "name": "half",
+          "regions": 2,
+          "rows_per_region": 8,
+          "cross_view_map": 0.7003861970043848,
+          "cross_view_rank1": 0.7857537269592285,
+          "same_view_map": 0.9267740711920107,
+          "gap": 0.22638787418762596
+        },
+        {
+          "level": 2,
+          "name": "quarter",
+          "regions": 4,
+          "rows_per_region": 4,
+          "cross_view_map": 0.7003255804905936,
+          "cross_view_rank1": 0.7857537269592285,
+          "same_view_map": 0.9268795322873996,
+          "gap": 0.22655395179680604
+        },
+        {
+          "level": 3,
+          "name": "stripe",
+          "regions": 8,
+          "rows_per_region": 2,
+          "cross_view_map": 0.700334929024243,
+          "cross_view_rank1": 0.7863059043884277,
+          "same_view_map": 0.9264716765978367,
+          "gap": 0.2261367475735937
+        }
+      ],
+      "redundancy": [
+        [
+          1.0,
+          0.9603986740112305,
+          0.9601886868476868,
+          0.9595101475715637
+        ],
+        [
+          0.9603986740112305,
+          0.9999999403953552,
+          0.999882698059082,
+          0.9996549487113953
+        ],
+        [
+          0.960188627243042,
+          0.9998826384544373,
+          0.9999999403953552,
+          0.9998844265937805
+        ],
+        [
+          0.9595101475715637,
+          0.9996549487113953,
+          0.9998843669891357,
+          1.0
+        ]
+      ]
+    }
+  },
+  "verdicts": {
+    "exp1_aerial_to_cctv.txt": {
+      "best_cross_level": 1,
+      "best_same_level": 0,
+      "cross_view_spread": 0.004559512538197197,
+      "min_level_correlation": 0.9631385207176208,
+      "conclusive": false,
+      "supported": false
+    },
+    "exp4_cctv_to_aerial.txt": {
+      "best_cross_level": 0,
+      "best_same_level": 0,
+      "cross_view_spread": 0.001292790292008128,
+      "min_level_correlation": 0.9595101475715637,
+      "conclusive": false,
+      "supported": false
+    }
+  }
+}
