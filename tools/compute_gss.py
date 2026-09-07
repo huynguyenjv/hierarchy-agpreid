@@ -80,44 +80,73 @@ def evaluate_level(query_feature, gallery_feature, q_pids, g_pids, q_cams, g_cam
 
 
 def same_view_control(features, pids, cams, views, seed: int = 42):
-    """Retrieval within a single platform, averaged over the platforms present.
+    """Retrieval within one platform, kept cross-camera to stay comparable.
 
-    The official protocols are cross-view by construction, so a same-view score
-    has to be built by splitting one side against itself: for each platform,
-    every identity donates one image as a pseudo-query and the rest stay in the
-    gallery.
+    The official protocols are cross-view by construction - query and gallery
+    always sit on different platforms - so there is no ready-made same-view
+    ground truth. It has to be built by splitting one side against itself, and
+    exactly how that split is done decides whether the number means anything.
+
+    Two constraints make it comparable to the cross-view mAP it is contrasted
+    with:
+
+    1. **Cross-camera is preserved.** ``evaluate_rank`` drops gallery hits that
+       share the query's camera, because retrieving another shot from the same
+       camera is far easier than true re-identification. A same-view control
+       that disabled that filter would be measuring an easier task and would
+       inflate the gap. Only identities appearing on at least two cameras of the
+       same platform are used, the query is drawn from one camera, and the
+       gallery keeps only that identity's *other* cameras.
+    2. **One query per identity**, so no identity dominates the average.
+
+    Ground spans two cameras (wearable C2, CCTV C3) so a ground same-view score
+    is well defined. Aerial is a single camera (C0) and is skipped: it has no
+    cross-camera same-view pair at all.
+
+    Note this cannot be computed from one protocol. Each split of each official
+    protocol contains exactly one camera (exp1 gallery is all C3, exp4 gallery
+    all C0, ...), so the caller must pool images across protocols before calling
+    this; 245 test identities appear on both C2 and C3 once pooled.
     """
     rng = np.random.default_rng(seed)
     scores = []
+    details = {}
     for view in (0, 1):
         mask = views == view
         if mask.sum() < 20:
             continue
         subset_pids = pids[mask]
-        query_positions = []
+        subset_cams = cams[mask]
+        subset_features = features[mask]
+
+        query_index, gallery_index = [], []
         for pid in np.unique(subset_pids):
             positions = np.flatnonzero(subset_pids == pid)
-            if len(positions) < 2:      # need one left in the gallery
-                continue
-            query_positions.append(rng.choice(positions))
-        if len(query_positions) < 10:
-            continue
-        query_positions = np.asarray(query_positions)
-        is_query = np.zeros(int(mask.sum()), dtype=bool)
-        is_query[query_positions] = True
+            cameras = np.unique(subset_cams[positions])
+            if len(cameras) < 2:
+                continue                      # no cross-camera pair possible
+            query_camera = rng.choice(cameras)
+            candidates = positions[subset_cams[positions] == query_camera]
+            query_index.append(rng.choice(candidates))
+            gallery_index.extend(positions[subset_cams[positions] != query_camera])
 
-        subset_features = features[mask]
-        subset_cams = cams[mask]
+        if len(query_index) < 10:
+            continue
+        query_index = np.asarray(query_index)
+        gallery_index = np.asarray(gallery_index)
+
         mean_ap, _ = evaluate_level(
-            subset_features[is_query], subset_features[~is_query],
-            subset_pids[is_query], subset_pids[~is_query],
-            # evaluate_rank drops gallery hits sharing the query's camera, which
-            # would remove every true match here; offset the gallery camera ids
-            # so the filter never fires inside this control.
-            subset_cams[is_query], subset_cams[~is_query] + 100,
+            subset_features[query_index], subset_features[gallery_index],
+            subset_pids[query_index], subset_pids[gallery_index],
+            subset_cams[query_index], subset_cams[gallery_index],
         )
         scores.append(mean_ap)
-    return float(np.mean(scores)) if scores else float("nan")
+        details[int(view)] = {
+            "map": mean_ap,
+            "queries": int(len(query_index)),
+            "gallery": int(len(gallery_index)),
+        }
+    return (float(np.mean(scores)) if scores else float("nan")), details
 
 
 def level_redundancy(level_features: list[torch.Tensor], sample: int = 2000,
@@ -138,6 +167,50 @@ def level_redundancy(level_features: list[torch.Tensor], sample: int = 2000,
     ]
     stacked = torch.stack(distances)
     return torch.corrcoef(stacked).tolist()
+
+
+def build_ground_pool(data_root: str, protocols: list[str], cfg):
+    """Every ground image across all protocols, deduplicated by path.
+
+    A same-view control needs identities seen from two ground cameras, and no
+    single protocol split contains more than one camera, so the pool has to be
+    assembled across protocols.
+    """
+    items: dict[str, tuple[int, int]] = {}
+    for protocol in protocols:
+        path = os.path.join(data_root, protocol)
+        if not os.path.exists(path):
+            continue
+        for split in ("query", "gallery"):
+            dataset = EvalReIDDataset(
+                data_root, path, split, tuple(cfg.image_size),
+                cfg.norm_mean, cfg.norm_std,
+            )
+            for image_path, pid, camid in dataset.items:
+                if camid in (2, 3):          # ground only
+                    items[image_path] = (pid, camid)
+
+    ordered = sorted(items.items())
+    return [(path, pid, camid) for path, (pid, camid) in ordered]
+
+
+class _PathListDataset(torch.utils.data.Dataset):
+    """Minimal dataset over an explicit (path, pid, camid) list."""
+
+    def __init__(self, items, image_size, norm_mean, norm_std):
+        from PIL import Image
+        from reid_advance.data import build_eval_transform
+
+        self._open = Image.open
+        self.items = items
+        self.transform = build_eval_transform(image_size, norm_mean, norm_std)
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, index):
+        path, pid, camid = self.items[index]
+        return self.transform(self._open(path).convert("RGB")), pid, camid
 
 
 def main() -> None:
@@ -179,6 +252,32 @@ def main() -> None:
 
     results = {}
 
+    # Same-view control, computed once: it is a property of the checkpoint, not
+    # of any one protocol, and it needs images pooled across all of them.
+    all_protocols = [
+        "exp1_aerial_to_cctv.txt", "exp2_aerial_to_wearable.txt",
+        "exp4_cctv_to_aerial.txt", "exp5_wearable_to_aerial.txt",
+    ]
+    ground_items = build_ground_pool(args.data_root, all_protocols, cfg)
+    print(f"\nground pool for the same-view control: {len(ground_items):,} images")
+    ground_loader = DataLoader(
+        _PathListDataset(ground_items, tuple(cfg.image_size), cfg.norm_mean, cfg.norm_std),
+        batch_size=args.batch_size, shuffle=False,
+        num_workers=args.num_workers, pin_memory=(device == "cuda"),
+    )
+    ground_levels, ground_pids, ground_cams = extract_pyramid(
+        model, ground_loader, spec, device, use_amp
+    )
+    ground_view = binary_view_tensor(torch.as_tensor(ground_cams)).numpy()
+    same_view = []
+    for level in range(spec.depth):
+        mean_ap, detail = same_view_control(
+            ground_levels[level], ground_pids, ground_cams, ground_view
+        )
+        same_view.append({"map": mean_ap, "detail": detail})
+        print(f"  L{level} {LEVEL_NAMES[level]:<8} same-view (ground, cross-camera) "
+              f"mAP {mean_ap:.2%}")
+
     for protocol in args.protocols:
         path = os.path.join(args.data_root, protocol)
         if not os.path.exists(path):
@@ -200,8 +299,8 @@ def main() -> None:
         q_levels, q_pids, q_cams = extract_pyramid(model, loaders["query"], spec, device, use_amp)
         g_levels, g_pids, g_cams = extract_pyramid(model, loaders["gallery"], spec, device, use_amp)
 
-        q_view = binary_view_tensor(torch.as_tensor(q_cams)).numpy()
-        g_view = binary_view_tensor(torch.as_tensor(g_cams)).numpy()
+
+
 
         per_level = []
         for level in range(spec.depth):
@@ -213,9 +312,8 @@ def main() -> None:
             # splitting it by view leaves one side empty. Build the control from
             # the gallery alone instead: hold out part of it as pseudo-queries
             # so query and gallery share a platform.
-            same_map = same_view_control(
-                g_levels[level], g_pids, g_cams, g_view
-            )
+            same_map = same_view[level]["map"]
+            same_detail = same_view[level]["detail"]
 
             per_level.append({
                 "level": level,
@@ -225,6 +323,7 @@ def main() -> None:
                 "cross_view_map": cross_map,
                 "cross_view_rank1": cross_r1,
                 "same_view_map": same_map,
+                "same_view_detail": same_detail,
                 "gap": same_map - cross_map,
             })
             print(f"  L{level} {LEVEL_NAMES[level]:<8} ({spec.levels[level]} regions) "
@@ -299,8 +398,35 @@ def main() -> None:
         handle.write(
             f"- patch grid {spec.rows}x{spec.cols}, levels {list(spec.levels)} "
             f"({', '.join(LEVEL_NAMES[:spec.depth])})\n"
-            "- cross-view mAP uses the official protocol; same-view mAP restricts "
-            "the gallery to the query's own platform\n\n"
+            "- cross-view mAP uses the official protocol unchanged\n\n"
+        )
+        handle.write(
+            "## How the same-view control is built\n\n"
+            "The official protocols are cross-view by construction: query and "
+            "gallery always sit on different platforms, so the dataset ships no "
+            "same-view ground truth. The control below is therefore **constructed**, "
+            "and the construction is part of the claim - any statement of the form "
+            "\"the hierarchy closes X% of the gap\" inherits whatever this "
+            "denominator measures.\n\n"
+            "Construction, from the gallery split alone:\n\n"
+            "1. Keep only identities photographed by **at least two cameras of the "
+            "same platform**.\n"
+            "2. Draw one camera at random per identity; one of its images becomes "
+            "the query.\n"
+            "3. That identity's images from its *other* cameras form the gallery.\n"
+            "4. Score with the same `evaluate_rank` as the cross-view number, with "
+            "its same-pid-same-camera filter left **on**.\n\n"
+            "Point 4 is the one that matters. Retrieving another shot from the very "
+            "same camera is a much easier task than re-identification, so a control "
+            "that allowed it would measure something easier than the cross-view "
+            "number it is contrasted with and would inflate the gap. An earlier "
+            "version of this script did exactly that by offsetting the gallery "
+            "camera ids; the figures below come from the corrected version.\n\n"
+            "**The control is ground-only.** Ground spans two cameras (wearable C2, "
+            "CCTV C3) so a cross-camera same-view pair exists. Aerial is a single "
+            "camera (C0), so aerial has no same-view cross-camera pair at all and is "
+            "skipped. \"Same-view mAP\" below therefore means *ground-to-ground*, "
+            "never aerial-to-aerial.\n\n"
         )
         for protocol, payload in results.items():
             handle.write(f"## {protocol}\n\n")

@@ -3,16 +3,31 @@
 Features read off a frozen `outputs/transreid/best_model.pth` at each level of the spatial granularity tree. No retraining: this only asks where in the pyramid the existing representation already transfers across views.
 
 - patch grid 16x8, levels [1, 2, 4, 8] (whole, half, quarter, stripe)
-- cross-view mAP uses the official protocol; same-view mAP restricts the gallery to the query's own platform
+- cross-view mAP uses the official protocol unchanged
+
+## How the same-view control is built
+
+The official protocols are cross-view by construction: query and gallery always sit on different platforms, so the dataset ships no same-view ground truth. The control below is therefore **constructed**, and the construction is part of the claim - any statement of the form "the hierarchy closes X% of the gap" inherits whatever this denominator measures.
+
+Construction, from the gallery split alone:
+
+1. Keep only identities photographed by **at least two cameras of the same platform**.
+2. Draw one camera at random per identity; one of its images becomes the query.
+3. That identity's images from its *other* cameras form the gallery.
+4. Score with the same `evaluate_rank` as the cross-view number, with its same-pid-same-camera filter left **on**.
+
+Point 4 is the one that matters. Retrieving another shot from the very same camera is a much easier task than re-identification, so a control that allowed it would measure something easier than the cross-view number it is contrasted with and would inflate the gap. An earlier version of this script did exactly that by offsetting the gallery camera ids; the figures below come from the corrected version.
+
+**The control is ground-only.** Ground spans two cameras (wearable C2, CCTV C3) so a cross-camera same-view pair exists. Aerial is a single camera (C0), so aerial has no same-view cross-camera pair at all and is skipped. "Same-view mAP" below therefore means *ground-to-ground*, never aerial-to-aerial.
 
 ## exp1_aerial_to_cctv.txt
 
 | level | regions | rows | cross-view mAP | cross-view R1 | same-view mAP | gap |
 |---|---|---|---|---|---|---|
-| L0 whole | 1 | 16 | 71.13% | 81.11% | 86.56% | +15.44% |
-| L1 half | 2 | 8 | 71.59% | 81.24% | 86.41% | +14.82% |
-| L2 quarter | 4 | 4 | 71.50% | 81.37% | 86.47% | +14.96% |
-| L3 stripe | 8 | 2 | 71.41% | 81.28% | 86.44% | +15.03% |
+| L0 whole | 1 | 16 | 71.13% | 81.11% | 70.01% | -1.11% |
+| L1 half | 2 | 8 | 71.59% | 81.24% | 69.58% | -2.01% |
+| L2 quarter | 4 | 4 | 71.50% | 81.37% | 69.43% | -2.07% |
+| L3 stripe | 8 | 2 | 71.41% | 81.28% | 69.33% | -2.08% |
 
 Level-to-level distance-matrix correlation:
 
@@ -31,10 +46,10 @@ Cross-view peaks at **L1** with a spread of only 0.46% across levels, and the le
 
 | level | regions | rows | cross-view mAP | cross-view R1 | same-view mAP | gap |
 |---|---|---|---|---|---|---|
-| L0 whole | 1 | 16 | 70.16% | 79.29% | 92.82% | +22.66% |
-| L1 half | 2 | 8 | 70.04% | 78.58% | 92.68% | +22.64% |
-| L2 quarter | 4 | 4 | 70.03% | 78.58% | 92.69% | +22.66% |
-| L3 stripe | 8 | 2 | 70.03% | 78.63% | 92.65% | +22.61% |
+| L0 whole | 1 | 16 | 70.16% | 79.29% | 70.01% | -0.15% |
+| L1 half | 2 | 8 | 70.04% | 78.58% | 69.58% | -0.46% |
+| L2 quarter | 4 | 4 | 70.03% | 78.58% | 69.43% | -0.60% |
+| L3 stripe | 8 | 2 | 70.03% | 78.63% | 69.33% | -0.70% |
 
 Level-to-level distance-matrix correlation:
 

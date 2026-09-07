@@ -20,8 +20,15 @@
           "rows_per_region": 16,
           "cross_view_map": 0.7112905890622201,
           "cross_view_rank1": 0.8111205697059631,
-          "same_view_map": 0.8656491350457116,
-          "gap": 0.15435854598349152
+          "same_view_map": 0.7001490721722864,
+          "same_view_detail": {
+            "0": {
+              "map": 0.7001490721722864,
+              "queries": 245,
+              "gallery": 5956
+            }
+          },
+          "gap": -0.0111415168899337
         },
         {
           "level": 1,
@@ -30,8 +37,15 @@
           "rows_per_region": 8,
           "cross_view_map": 0.7158501016004173,
           "cross_view_rank1": 0.8123939037322998,
-          "same_view_map": 0.864060559877357,
-          "gap": 0.14821045827693968
+          "same_view_map": 0.6957960881394551,
+          "same_view_detail": {
+            "0": {
+              "map": 0.6957960881394551,
+              "queries": 245,
+              "gallery": 5956
+            }
+          },
+          "gap": -0.02005401346096214
         },
         {
           "level": 2,
@@ -40,8 +54,15 @@
           "rows_per_region": 4,
           "cross_view_map": 0.7150371293047467,
           "cross_view_rank1": 0.8136672377586365,
-          "same_view_map": 0.8646833603044132,
-          "gap": 0.14964623099966645
+          "same_view_map": 0.694302075930629,
+          "same_view_detail": {
+            "0": {
+              "map": 0.694302075930629,
+              "queries": 245,
+              "gallery": 5956
+            }
+          },
+          "gap": -0.02073505337411774
         },
         {
           "level": 3,
@@ -50,8 +71,15 @@
           "rows_per_region": 2,
           "cross_view_map": 0.7141169703689096,
           "cross_view_rank1": 0.8128183484077454,
-          "same_view_map": 0.8643942545559401,
-          "gap": 0.15027728418703046
+          "same_view_map": 0.693343988725352,
+          "same_view_detail": {
+            "0": {
+              "map": 0.693343988725352,
+              "queries": 245,
+              "gallery": 5956
+            }
+          },
+          "gap": -0.020772981643557675
         }
       ],
       "redundancy": [
@@ -90,8 +118,15 @@
           "rows_per_region": 16,
           "cross_view_map": 0.7016183707826017,
           "cross_view_rank1": 0.7929320931434631,
-          "same_view_map": 0.9282253892195639,
-          "gap": 0.22660701843696218
+          "same_view_map": 0.7001490721722864,
+          "same_view_detail": {
+            "0": {
+              "map": 0.7001490721722864,
+              "queries": 245,
+              "gallery": 5956
+            }
+          },
+          "gap": -0.001469298610315306
         },
         {
           "level": 1,
@@ -100,8 +135,15 @@
           "rows_per_region": 8,
           "cross_view_map": 0.7003861970043848,
           "cross_view_rank1": 0.7857537269592285,
-          "same_view_map": 0.9267740711920107,
-          "gap": 0.22638787418762596
+          "same_view_map": 0.6957960881394551,
+          "same_view_detail": {
+            "0": {
+              "map": 0.6957960881394551,
+              "queries": 245,
+              "gallery": 5956
+            }
+          },
+          "gap": -0.00459010886492961
         },
         {
           "level": 2,
@@ -110,8 +152,15 @@
           "rows_per_region": 4,
           "cross_view_map": 0.7003255804905936,
           "cross_view_rank1": 0.7857537269592285,
-          "same_view_map": 0.9268795322873996,
-          "gap": 0.22655395179680604
+          "same_view_map": 0.694302075930629,
+          "same_view_detail": {
+            "0": {
+              "map": 0.694302075930629,
+              "queries": 245,
+              "gallery": 5956
+            }
+          },
+          "gap": -0.0060235045599645876
         },
         {
           "level": 3,
@@ -120,8 +169,15 @@
           "rows_per_region": 2,
           "cross_view_map": 0.700334929024243,
           "cross_view_rank1": 0.7863059043884277,
-          "same_view_map": 0.9264716765978367,
-          "gap": 0.2261367475735937
+          "same_view_map": 0.693343988725352,
+          "same_view_detail": {
+            "0": {
+              "map": 0.693343988725352,
+              "queries": 245,
+              "gallery": 5956
+            }
+          },
+          "gap": -0.006990940298891024
         }
       ],
       "redundancy": [
