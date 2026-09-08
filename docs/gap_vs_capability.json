@@ -1,0 +1,106 @@
+{
+  "series": {
+    "CARGO": [
+      {
+        "dataset": "CARGO",
+        "source": "cargo_matrix_e005.json",
+        "epoch": 5,
+        "overall_map": 0.21611853759912308,
+        "aerial_ground": 0.336308461048328,
+        "same_platform": 0.4752570984160334,
+        "gap": 0.1389486373677054,
+        "by_kind": {
+          "aerial-ground": 0.336308461048328,
+          "aerial-aerial": 0.35276189449061235,
+          "ground-ground": 0.5190053855322552
+        }
+      },
+      {
+        "dataset": "CARGO",
+        "source": "cargo_matrix_e010.json",
+        "epoch": 10,
+        "overall_map": 0.42056930665229725,
+        "aerial_ground": 0.5467424454521165,
+        "same_platform": 0.6881907193613763,
+        "gap": 0.14144827390925985,
+        "by_kind": {
+          "aerial-ground": 0.5467424454521165,
+          "aerial-aerial": 0.5808504112264037,
+          "ground-ground": 0.726526543695295
+        }
+      },
+      {
+        "dataset": "CARGO",
+        "source": "cargo_matrix_e015.json",
+        "epoch": 15,
+        "overall_map": 0.41882952392510236,
+        "aerial_ground": 0.5672298713176909,
+        "same_platform": 0.7182361335748396,
+        "gap": 0.15100626225714875,
+        "by_kind": {
+          "aerial-ground": 0.5672298713176909,
+          "aerial-aerial": 0.6259257753569817,
+          "ground-ground": 0.751204118652646
+        }
+      },
+      {
+        "dataset": "CARGO",
+        "source": "cargo_camera_pair_matrix_e20.json",
+        "epoch": 20,
+        "overall_map": 0.4550340894472106,
+        "aerial_ground": 0.6059273897469499,
+        "same_platform": 0.7457873947230841,
+        "gap": 0.13986000497613416,
+        "by_kind": {
+          "aerial-ground": 0.6059273897469499,
+          "aerial-aerial": 0.6582835064942989,
+          "ground-ground": 0.7770387833762216
+        }
+      },
+      {
+        "dataset": "CARGO",
+        "source": "cargo_camera_pair_matrix_e25.json",
+        "epoch": 25,
+        "overall_map": 0.46881115295287057,
+        "aerial_ground": 0.6142264291441665,
+        "same_platform": 0.7541500182220643,
+        "gap": 0.13992358907789781,
+        "by_kind": {
+          "aerial-ground": 0.6142264291441665,
+          "aerial-aerial": 0.6654820145576352,
+          "ground-ground": 0.7858171623879319
+        }
+      },
+      {
+        "dataset": "CARGO",
+        "source": "cargo_camera_pair_matrix.json",
+        "epoch": 30,
+        "overall_map": 0.46558257053148605,
+        "aerial_ground": 0.6146910165059906,
+        "same_platform": 0.7563784225142175,
+        "gap": 0.14168740600822693,
+        "by_kind": {
+          "aerial-ground": 0.6146910165059906,
+          "aerial-aerial": 0.6713998396308363,
+          "ground-ground": 0.7867279164011395
+        }
+      }
+    ],
+    "AG-ReID.v2": []
+  },
+  "trends": {
+    "CARGO": {
+      "verdict": "FLAT against capability - the gap is intrinsic, not under-training",
+      "slope": 0.009318636246120927,
+      "delta": 0.0027387686405215272,
+      "capability_range": [
+        0.21611853759912308,
+        0.46881115295287057
+      ],
+      "gap_range": [
+        0.1389486373677054,
+        0.15100626225714875
+      ]
+    }
+  }
+}

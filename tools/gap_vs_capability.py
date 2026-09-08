@@ -51,13 +51,18 @@ def load_series(pattern: str, label: str) -> list[dict]:
         if "aerial-ground" not in by_kind:
             continue
         cross = by_kind["aerial-ground"]["mean"]
-        same_parts = [
-            by_kind[kind]["mean"]
+        # Weight the two same-platform kinds by how many pairs each contributes.
+        # An unweighted mean would let 20 aerial-aerial pairs count as much as
+        # 56 ground-ground ones and would shift the gap by several points.
+        same_pairs = [
+            (by_kind[kind]["mean"], by_kind[kind]["pairs"])
             for kind in ("aerial-aerial", "ground-ground")
             if kind in by_kind
         ]
-        if not same_parts:
+        if not same_pairs:
             continue
+        total_pairs = sum(count for _, count in same_pairs)
+        same_platform = sum(mean * count for mean, count in same_pairs) / total_pairs
         epoch = payload.get("epoch")
         if epoch is None:
             match = re.search(r"e?(\d+)\.json$", os.path.basename(path))
@@ -68,8 +73,8 @@ def load_series(pattern: str, label: str) -> list[dict]:
             "epoch": epoch,
             "overall_map": payload.get("reported_map"),
             "aerial_ground": cross,
-            "same_platform": float(np.mean(same_parts)),
-            "gap": float(np.mean(same_parts)) - cross,
+            "same_platform": float(same_platform),
+            "gap": float(same_platform) - cross,
             "by_kind": {k: v["mean"] for k, v in by_kind.items()},
         })
     rows.sort(key=lambda row: (row["epoch"] is None, row["epoch"]))
