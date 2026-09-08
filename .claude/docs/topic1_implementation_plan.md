@@ -1,366 +1,258 @@
-# Implementation Plan — Topic 1: Hierarchy-Aware AGPReID
+# Implementation Plan — Topic 1 (bản viết lại, 2026-09-08)
 
-**Nguồn**: `.claude/docs/topic1_hierarchy_aware_agpreid_knowledge_base.md`
-**Codebase**: `D:\Source\AI\ReID_Advance` (branch `feature/huy`)
-**Ngày lập**: 2026-09-06 · **Thời lượng**: 6 tháng / 24 tuần
-**Phần cứng**: RTX 3060 12GB, 32GB RAM · torch 2.5.1+cu121 trong `venv/`
+**Repo**: `huynguyenjv/hierarchy-agpreid` (master) · **Phần cứng**: RTX 3060 12GB, 32GB RAM
+**Chạy Python bằng `venv/Scripts/python.exe`** — bản global là torch CPU-only.
 
-> ⚠️ **Dùng `venv/Scripts/python.exe`**, không phải `python` global — bản global là torch CPU-only.
+> Bản này thay thế hoàn toàn plan gốc. Hướng ban đầu (cây phân cấp ngữ nghĩa từ
+> soft-biometric attributes, theo knowledge base) **đã bị dữ liệu bác bỏ**. Ba
+> tiền đề nền của nó lần lượt đổ, và điều tra thay thế đã cho một kết quả mạnh
+> hơn. KB gốc (`topic1_hierarchy_aware_agpreid_knowledge_base.md`) giữ lại làm
+> tham khảo lý thuyết, **không còn là kế hoạch thi hành**.
 
 ---
 
-## ✅ KẾT QUẢ PHASE 0 (đã chạy 2026-09-07)
+## 0. Tóm tắt trạng thái
 
-### AI-00 — VRAM không phải ràng buộc (lật ngược giả định của plan)
+**Đã xong và chắc chắn** — đủ làm một bài analysis hoàn chỉnh:
 
-Đo thực tế ViT-S/16, 256×128, K=8, JPM+SIE bật, AMP bật (`tools/profile_memory.py` → `docs/memory_profile.md`):
+| # | Kết quả | Bằng chứng |
+|---|---|---|
+| 1 | Attribute **không** suy giảm theo góc nhìn; chỉ `gender` dùng được làm tầng cây | `docs/vss_table.md` |
+| 2 | Same-view control **không dựng được** từ protocol chính thức của AG-ReID.v2 | `docs/same_view_control_feasibility.md` |
+| 3 | Aerial-ground **không** phải trục khó trên AG-ReID.v2 (gap −1.59%) | `docs/camera_pair_matrix.md` |
+| 4 | Trên CARGO gap **có thật** và lớn (+17.20% trục ground-only) | `docs/cargo_camera_pair_matrix.md` |
+| 5 | **Hai đường cong khác hình dạng**: AG-ReID.v2 hòa tan gap, CARGO giữ nguyên | `docs/gap_vs_capability.md` |
+| 6 | Phân rã hai hiệu ứng: aerial-intrinsic vs platform-transfer (chỉ CARGO đo được) | `docs/cargo_camera_pair_matrix.md` |
 
-| batch | P | peak reserved | headroom / 12 GiB |
-|---|---|---|---|
-| 64 | 8 | 1.92 GiB | 10.1 |
-| **128** | **16** | **3.35 GiB** | **8.65** |
-| 192 | 24 | 4.77 GiB | 7.2 |
-| 256 | 32 | 6.19 GiB | 5.8 |
-| 384 | 48 | 9.10 GiB | 2.9 |
+**Chưa xong** — nhánh method, đang thử:
 
-**Batch 128 chỉ dùng 3.35 GiB.** Ước lượng 6–8 GiB trước đó quá bảo thủ (tính theo ViT-B 86M thay vì ViT-S 22M). Overhead CV-HWC ở B=128, L=4 chỉ ~0.001 GiB — hoàn toàn không đáng kể.
+| # | Việc | Trạng thái |
+|---|---|---|
+| 7 | ViewBalancedPKSampler (AI-04) | chưa làm |
+| 8 | Multi-granularity loss + view-conditioning (AI-06) | formulation đã nháp, chờ soi |
+| 9 | Train 3 nhánh: baseline / uniform-β / view-aware | chưa chạy |
 
-**Hệ quả — ba ràng buộc trong plan được gỡ bỏ:**
-- ✅ Batch 128 (P=16×K=8) chạy thoải mái → **L=4 khả thi**, không phải hạ xuống L=3.
-- ✅ Còn dư ~8.6 GiB → **có thể tăng lên batch 256 (P=32)** nếu contrastive cần nhiều negative hơn. Đây là đòn bẩy tự do, dùng khi Gate 2 không đạt.
-- ✅ Thứ tự fallback "ưu tiên P hơn K" giữ lại làm dự phòng nhưng **chưa cần dùng**.
-- ⚠️ AMP **đã có sẵn** trong `transreid.py` từ trước (tôi nhận định nhầm là thiếu ở bản plan đầu). Chỉ thêm flag `use_amp` (mặc định `True`, giữ nguyên hành vi cũ) để tắt được khi profiling.
+---
 
-### BA-01 — View mapping ✅ verify xong
-`C0=aerial, C2=wearable, C3=CCTV`, đối chiếu khớp cả 4 protocol. Toàn dataset chỉ có camera {0,2,3}, **0 ảnh unknown**. Đã refactor ra `reid_advance/hierarchy/view_map.py`. Chi tiết: `docs/view_mapping.md`.
+## 1. Vì sao hướng gốc đổ — chuỗi ba phát hiện
 
-### BA-02/BA-03 — Attribute audit ✅ (`docs/attribute_audit.md`)
+Ghi lại để không ai (kể cả tương lai) đi lại vòng này.
 
-**Ba giả định sống còn đều ĐÚNG:**
-- Coverage **807/807 identity (100%)** resolve được sang MAT row, 0 ảnh thiếu.
-- **0 identity có >1 attribute vector** → giả định "attribute ở mức identity" của KB §2.2 **được xác nhận**. Nhánh cây thật sự view-invariant.
-- **807/807 identity (100%) có cả ảnh aerial lẫn ground** → sampler luôn tạo được cặp cross-view. Rủi ro "β_cross không kích hoạt" giảm mạnh.
+**(a) Attribute không suy giảm theo view.** KB §5.1 giả định "thuộc tính thô sống
+sót khi bay lên cao, chi tiết tinh biến mất". Đo thật (AI-03): retention
+(aerial ÷ ground balanced accuracy) là **0.86–1.07** cho gần hết 15 attribute —
+lên cao gần như không mất gì. Nhưng ground-bal cũng chỉ ≤0.54 ngoài `gender`.
+Các attribute này **khó nhận ngay từ ảnh ground**; đó là giới hạn nhãn/độ phân
+giải, không phải hiện tượng aerial-ground. Chỉ 1/15 vượt ngưỡng VSS 0.65 → cây
+3 tầng attribute không xây được.
 
-**Phát hiện quan trọng cho thiết kế cây — cây nháp trong KB §6.2 KHÔNG dùng được nguyên trạng:**
+**(b) Granularity không tự phân hóa.** Hướng thay thế: cây theo độ chi tiết
+không gian (whole → half → quarter → stripe), lấy từ patch grid, không cần nhãn.
+Probe trên checkpoint đóng băng (GSS) cho kết quả **INCONCLUSIVE** và được báo
+đúng như vậy: các tầng tương quan **≥0.96** trong không gian khoảng cách, mAP
+chênh nhau 0.13–0.46%. Mọi tầng pooling từ cùng tập token của một backbone
+huấn luyện cho một mục tiêu global duy nhất — probe đo lại một biểu diễn 4 lần.
+Nó **không bác bỏ** giả thuyết, chỉ cho thấy granularity chưa phân hóa sẵn.
 
-| nhóm | entropy | class lớn nhất | đánh giá |
-|---|---|---|---|
-| `age` | 0.31 | **95.4%** | ❌ **Loại** — KB đề xuất làm L2, nhưng 768/807 ID cùng một nhóm tuổi. Vô dụng làm tầng |
-| `head` | 0.56 | 90.7% | ❌ Loại — 85.1% unknown |
-| `beard` / `moustache` | 0.33 / 0.38 | 94% / 92.7% | ❌ Loại — quá lệch |
-| `gender` | 1.00 | 53.4% | ✅ Cân bằng đẹp (428/374) |
-| `height` | 1.64 | 37.3% | ✅ Ứng viên tốt |
-| `hairstyle` | 1.90 | 49.3% | ✅ Entropy cao nhất nhóm khả dụng |
-| `lower` | 2.32 | 32.8% | ✅ Cân bằng nhất |
-| `upper` | 2.10 | 58.2% | ✅ Tốt |
-| `bag` | 1.98 | 47.4% | ⚠️ Cân bằng nhưng VSS khả nghi từ trên cao |
+**(c) Gap không nằm ở trục người ta tưởng.** Phân rã theo cặp camera trên
+AG-ReID.v2: aerial–ground **73.18%** *cao hơn* ground–ground **71.59%**. Trục
+aerial-ground không phải trục khó. Thứ nổi lên là *hướng*, không phải platform:
+C0→C2 (76.56%) hơn C2→C0 (71.19%) 5.4 điểm trên cùng tập ID — hiệu ứng gallery,
+không phải view gap.
 
-MI cao nhất: `upper × lower` 0.579, `gender × hairstyle` 0.555 → **không xếp hai cặp này thành hai tầng liên tiếp** (KB §6.1 tiêu chí 3).
+---
 
-→ **BA-04 phải thiết kế lại cây**, chờ VSS từ AI-03. Ứng viên thay `age`: `height` hoặc `hairstyle`.
+## 2. Kết quả trung tâm — hai đường cong
 
-### AI-03 — VSS ⚠️ **KẾT QUẢ BẤT LỢI, CẦN QUYẾT ĐỊNH** (`docs/vss_table.md`)
+Câu hỏi đóng biến: gap là nội tại dataset hay artifact của model yếu?
 
-Setup: 1 ViT-S + 15 head, 12 epoch, train **chỉ trên ground** của 564 ID, test trên 243 ID **hoàn toàn tách biệt** (identity-disjoint — bắt buộc, vì attribute gán ở mức ID nên nếu trùng ID thì model chỉ cần nhận ra người rồi tra nhãn). VSS = **balanced accuracy** trên aerial (không dùng raw accuracy vì nhiều nhóm lệch tới 95%).
+Không so được ở cùng mAP (CARGO trần 46.6%, AG-ReID.v2 trên 70% — cùng công
+thức, hai trần khác nhau). Trả lời bằng **hình dạng đường cong** qua dải năng
+lực của mỗi dataset, trục ground-only (trục duy nhất cả hai cùng có):
 
-| attribute | VSS | ground-bal | retention | lift vs majority | dùng được? |
+### AG-ReID.v2 — supervision hòa tan gap
+
+| epoch | mAP | a–g | g–g | gap |
+|---|---|---|---|---|
+| 5 | 58.08% | 55.56% | 56.72% | **+1.16%** |
+| 10 | 65.19% | 60.43% | 61.08% | **+0.65%** |
+| 15 | 68.21% | 63.20% | 62.99% | **−0.21%** |
+| 20 | 70.35% | 64.48% | 63.90% | **−0.59%** |
+| *125 (độc lập)* | *75.47%* | *73.18%* | *71.59%* | ***−1.59%*** |
+
+### CARGO — gap giữ nguyên
+
+| epoch | mAP | a–g | g–g | gap |
+|---|---|---|---|---|
+| 5 | 21.61% | 33.63% | 51.90% | **+18.27%** |
+| 10 | 42.06% | 54.67% | 72.65% | **+17.98%** |
+| 15 | 41.88% | 56.72% | 75.12% | **+18.40%** |
+| 20 | 45.50% | 60.59% | 77.70% | **+17.11%** |
+| 25 | 46.88% | 61.42% | 78.58% | **+17.16%** |
+| 30 | 46.56% | 61.47% | 78.67% | **+17.20%** |
+
+**Dải mAP: 12.3 điểm (AG-ReID.v2) và 25.3 điểm (CARGO)** — cả hai vượt ngưỡng
+10 nên đọc slope hợp lệ, không phải lùi về đọc mức.
+
+**Kết luận**: gap cross-platform là **hàm của benchmark**, không phải hằng số
+của bài toán. Trên một dataset supervision thường xóa sạch nó; trên dataset kia
+mAP tăng gấp đôi mà gap không co 1 điểm. Khác nhau về **kiểu**, không chỉ về độ
+khó — và kết luận này không phụ thuộc việc đặt hai model ở cùng mAP.
+
+### Phân rã hai hiệu ứng (chỉ CARGO đo được)
+
+| loại cặp | số cặp | mean mAP |
+|---|---|---|
+| aerial–ground | 80 | 61.47% |
+| aerial–aerial | 20 | 67.14% |
+| ground–ground | 56 | 78.67% |
+
+`aerial–aerial` nằm **giữa** → hai hiệu ứng cộng dồn, không phải một: ảnh nhìn
+từ trên cao tự nó khó hơn (67.1 vs 78.7) **ngay cả khi không đổi platform**, và
+đổi platform tốn thêm nữa (61.5). Cộng đồng gộp hai thứ này làm một.
+AG-ReID.v2 không thể tạo phân rã này (0 identity có ≥2 camera aerial).
+
+---
+
+## 3. Cây kết cục — nhánh nào dẫn về đâu
+
+```
+                    hai đường cong (ĐÃ CÓ)
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+     method co được gap           method không co được gap
+     ở fixed-mAP                  ở fixed-mAP
+              │                           │
+        A: analysis + method        B: analysis + negative result
+        (bài mạnh nhất)             (vẫn là bài tốt)
+```
+
+**Ba trong bốn kết cục dẫn về analysis.** Chỉ một nhánh cho method. Không cột
+danh dự vào nhánh hẹp — nếu loss không co được gap, lùi về B, không nặn tiếp.
+
+**Đã chốt: A như hướng thử, không phải A như kết luận.**
+- CARGO = dataset chính (nơi có gap thật để nhắm)
+- AG-ReID.v2 = control-gap-vắng-mặt (chứng minh method không gây hại khi không có gap)
+
+---
+
+## 4. Rào mà đường cong vừa dựng cho method
+
+Đường cong CARGO chứng minh **25 điểm mAP không co được gap dù 1 điểm**. Đó là
+tin tốt cho "gap cấu trúc, đáng nghiên cứu" nhưng là gánh nặng trực tiếp lên
+loss: **AI-06 phải làm cái mà 25 điểm mAP không làm được.**
+
+### Thước đo — do đường cong định nghĩa, không phải tự đặt
+
+| kết quả | đọc là |
+|---|---|
+| view-aware **gap thấp hơn** uniform-β, mAP tương đương | ✅ granularity thật |
+| view-aware **mAP cao hơn** nhưng gap như nhau | ❌ chỉ là capacity — thất bại |
+| cả hai bằng baseline | ❌ multi-granularity vô nghĩa trên CARGO |
+
+**Luôn báo cáo cặp `(mAP, gap)`. Không bao giờ báo mAP đơn lẻ** — mAP tổng sẽ
+ru ngủ.
+
+---
+
+## 5. Backlog còn lại
+
+### AI-04 — ViewBalancedPKSampler
+Kế thừa `RandomIdentitySampler` (`data.py:330`), mỗi ID lấy K/2 aerial + K/2
+ground. Dùng `cargo.binary_view_of_camera` (1–5 aerial, 6–13 ground).
+
+**Verify bắt buộc trước khi train một epoch nào**: in tỉ lệ aerial/ground và số
+cặp cross-platform cùng ID trong vài batch đầu. Nếu batch không chứa cặp
+cross-platform cùng ID thì view-aware loss là **no-op** và mất ba ngày mới biết.
+QC đo trực tiếp trên batch thật, không tin log.
+
+### AI-06 — Multi-granularity loss
+
+```
+L = L_ID + L_triplet + α · L_MG
+L_MG = Σ_l  β(l, cross_ij) · SupCon_l
+```
+
+`L_ID + L_triplet` giữ nguyên trên CLS — bảo hiểm không tụt dưới baseline.
+
+**β(l) khởi tạo** (`depth=4`, softmax qua tầng, `coarse_bias=2.0`):
+
+| | whole | half | quarter | stripe | coarse/fine |
 |---|---|---|---|---|---|
-| **`gender`** | **0.742** | 0.836 | 0.89 | **+0.237** | ✅ |
-| `moustache` | 0.502 | 0.503 | 1.00 | −0.006 | ❌ |
-| `beard` | 0.500 | 0.508 | 0.98 | −0.002 | ❌ |
-| `head` | 0.478 | 0.448 | 1.07 | +0.350 | ❌ |
-| `lower` | 0.460 | 0.536 | 0.86 | +0.167 | ❌ |
-| `hairstyle` | 0.412 | 0.424 | 0.97 | +0.051 | ❌ |
-| `age` | 0.365 | 0.491 | 0.74 | −0.019 | ❌ |
-| ... 8 nhóm còn lại | ≤ 0.40 | ≤ 0.42 | — | ≤ +0.12 | ❌ |
+| cross-platform | **0.523** | 0.268 | 0.138 | 0.071 | 7.39× |
+| same-platform | 0.071 | 0.138 | 0.268 | **0.523** | 0.14× |
 
-**Chỉ 1/15 attribute vượt ngưỡng 0.65.** Cây 3 tầng attribute của KB §6.2 không xây được.
+Ablate `coarse_bias ∈ {1.0, 2.0, 3.0}` (tỉ lệ 2.7× / 7.4× / 20×).
+`α = 1.0` khởi điểm, ablate {0.3, 1.0, 3.0}; in scale từng thành phần ở batch
+đầu để chỉnh trước khi train dài.
 
-**Chẩn đoán quan trọng — không phải lỗi của view:** `retention` (aerial ÷ ground) hầu hết là **0.86–1.07**, tức lên cao gần như không mất thêm gì. Nhưng `ground-bal` cũng chỉ ≤ 0.54 cho mọi nhóm ngoài gender. Nghĩa là các attribute này **khó nhận ngay từ ảnh ground**, chứ không phải bị độ cao phá hủy. Đây là giới hạn của nhãn/dữ liệu (ảnh người nhỏ, nhãn nhiễu), không phải hiện tượng aerial-ground.
+**Unit test trên cây giả** trước khi train: β áp đúng tầng, cross/same áp đúng
+cặp, gradient finite.
 
-> ⚠️ Điều này làm yếu chính giả thuyết nền của đề tài (KB §5.1: "thuộc tính thô sống sót khi bay lên cao"). Với AG-ReID.v2, thứ sống sót gần như chỉ có gender.
+### Ba nhánh — chạy cùng một lượt (không thương lượng)
 
-**Bốn hướng đi, cần chốt trước khi làm BA-04:**
-1. **Cây nông L=2** (root → gender → ID). Trung thực với dữ liệu, nhưng ℓ chỉ nhận 3 giá trị {0,1,2} → tín hiệu phân cấp yếu, và C4 (H-mAP/MS) mất phần lớn độ phân giải.
-2. **Cây từ tổ hợp attribute** thay vì từng attribute đơn lẻ — clustering trên vector 15 chiều (variant b). Không cần từng attribute phải nhận diện được; chỉ cần *cụm* có ý nghĩa. **Có thể là hướng cứu bài.**
-3. **Feature-driven tree** (variant c) — bỏ hẳn attribute làm nguồn cây.
-4. **Đổi khung sang analysis paper** — dùng chính bảng VSS làm đóng góp: *"soft-biometric attributes trong AGPReID không đủ tin cậy để làm hierarchy; đây là bằng chứng định lượng"*. KB §12.2 mục 6 đã dự phòng đường này.
-
-→ **BA-04 bị chặn**, chờ quyết định. Ưu tiên thử hướng (2) trước vì rẻ và giữ nguyên được cấu trúc bài.
-
-### QC-01/QC-02 ✅ — 34 test xanh (23 + 11 cho VSS)
-`pytest.ini`, `tests/conftest.py` (seed-lock 42), `tests/test_view_map.py`, `tests/test_data_assumptions.py`. Chạy: `venv/Scripts/python.exe -m pytest -q`.
-
----
-
-## Ràng buộc phần cứng & quyết định đã chốt
-
-GPU 12GB (KB §9.4 giả định 24GB). **Đã đo thực tế — xem mục trên; VRAM không còn là ràng buộc.**
-
-| Quyết định | Chốt | Lý do |
+| nhánh | β | mục đích |
 |---|---|---|
-| Backbone chính | **ViT-S/16** (`vit_small_patch16_224.augreg_in21k_ft_in1k`, `embed_dim=384`) | Repo **vốn đã dùng ViT-S** (`TransReIDConfig`); không phải hạ cấp mà là giữ nguyên. ViT-B/16 batch 128 cần ~11GB activations + optimizer state → OOM chắc chắn |
-| Batch | **128 view-balanced (P=16×K=8)** — phải nâng từ 32 hiện tại | Contrastive loss phụ thuộc số negative trong batch. Xem "Vì sao không giảm batch" bên dưới |
-| AMP | **Bắt buộc bật** | `transreid.py` hiện **chưa dùng AMP**; chỉ `bnneck.py:105` có. Đây là task AI-00 |
-| `grad_accum_steps` | **Bỏ cho nhánh hierarchy** | Xem bên dưới |
-| Ưu tiên khi cắt scope | **Giữ C4 (metrics) + Ablation B (random tree)** | Rẻ về tính toán (eval-only), là trục thắng dự phòng khi mAP gain nhỏ |
+| baseline | — | `L_ID + L_tri` thuần |
+| **uniform-β** | 0.25 đều mọi tầng, mọi cặp | **phân biệt granularity thật với multi-scale** |
+| view-aware | bảng trên | đóng góp cần chứng minh |
 
-### ⚠️ Vì sao KHÔNG giảm batch, và vì sao gradient accumulation không cứu được
-
-`TransReIDConfig` hiện đặt `batch_size=32, instances_per_identity=4, grad_accum_steps=2` → P=8, K=4.
-
-**Gradient accumulation vô dụng với contrastive loss.** Accumulation cộng gradient qua nhiều micro-batch, nhưng ma trận similarity `s_ij` chỉ tính được trong phạm vi **một** micro-batch. Loss vẫn chỉ "thấy" 32 mẫu. Với triplet/CE thì accumulation tương đương batch lớn; với CV-HWC thì **không**.
-
-Hệ quả nếu giữ P=8, K=4 view-balanced: mỗi ID chỉ 2 aerial + 2 ground, và cây L=4 sẽ đói positive ở tầng trung gian — đúng lỗi KB §12.2 mục 5. Đây là vấn đề **khoa học**, không phải vấn đề tốc độ.
-
-**→ Bắt buộc nâng batch lên 128 cho nhánh hierarchy.** Ước lượng ViT-S, 256×128, 129 token, AMP: ~6–8GB. Khả thi trên 12GB nhưng **phải đo thực tế trước** (AI-00).
-
-Thứ tự fallback nếu 128 vẫn OOM (giảm theo thứ tự này, dừng ngay khi vừa):
-1. P=16, K=8 = 128 ← mục tiêu
-2. P=16, K=4 = 64 (giữ số ID, giảm ảnh/ID — ưu tiên hơn vì giữ được số negative)
-3. P=12, K=8 = 96
-4. P=8, K=8 = 64 + **giảm cây xuống L=3**
-
-**Nguyên tắc khi buộc phải giảm: ưu tiên giữ P (số ID) hơn K.** Số negative trong contrastive tỉ lệ với P; K chỉ ảnh hưởng số positive cùng ID.
-
-### Hệ quả lên định vị bài báo
-
-ViT-S cho số tuyệt đối thấp hơn paper gốc (vốn dùng ViT-B). **Không đua SOTA tuyệt đối** — reframe thành *"so sánh công bằng ở cùng backbone và cùng ngân sách tính toán"*: mọi baseline (TransReID, VDT nếu chạy được) đều chạy lại trên ViT-S. Đây là cách trình bày hợp lệ và phổ biến.
-
-Ba trục **không bị ảnh hưởng** bởi backbone nhỏ, và đó chính là lý do ưu tiên giữ chúng:
-- **C4 (H-mAP, AC@k, MS)** — đo chất lượng ngữ nghĩa của lỗi, độc lập với sức mạnh backbone.
-- **Ablation B (random tree control)** — câu hỏi khoa học, không phải cuộc đua số.
-- **Ablation E (d thấp)** — GPU yếu và embedding chiều thấp là *cùng một câu chuyện*: ReID trên edge device/drone. Ràng buộc phần cứng ở đây biến thành một lập luận có lợi.
+Uniform-β **không phải** tắt multi-granularity — vẫn 4 tầng, cùng tham số, cùng
+compute, cùng schedule. Chỉ bỏ **view-conditioning**. Nếu view-aware không thắng
+nó, cái ta có chỉ là multi-scale features, thứ đã tồn tại từ lâu. Chạy sau là
+muộn — reviewer sẽ buộc chạy.
 
 ---
 
-## 0. Đánh giá hiện trạng codebase (đã khảo sát thực tế)
+## 6. Hai điểm formulation chưa chốt
 
-Repo đã có sẵn khá nhiều mảnh ghép cần thiết.
+**(1) Softmax qua tầng có đúng không?** Nó ép Σβ = 1, nên tăng coarse *phải*
+giảm fine. Cách khác: β độc lập mỗi tầng (không chuẩn hóa), cho phép cross-platform
+tăng coarse mà không bỏ fine. Softmax làm ablation sạch hơn (ngân sách cố định
+→ gain không do loss lớn hơn) nhưng có thể quá cứng.
 
-| Thành phần cần cho đề tài | Trạng thái | File |
-|---|---|---|
-| Attribute schema 15 nhóm + parser `.mat` | ✅ Có sẵn | `reid_advance/attributes.py`, `data.py:86 load_track_attributes` |
-| TransReID baseline (SIE + PK sampler) | ✅ Có sẵn | `reid_advance/pipelines/transreid.py` |
-| PK sampler (P×K) | ⚠️ Có, **chưa view-balanced** | `data.py:330 RandomIdentitySampler` |
-| Eval mAP/CMC | ✅ Có sẵn | `evaluation.py:60 evaluate_rank` |
-| Camera id parsing | ✅ Có (regex `C\d+F`) | `data.py:64 parse_camera_id` |
-| **View label (aerial/ground)** | ✅ **ĐÃ CÓ** — `C0=aerial, C2=wearable, C3=CCTV` | `pipelines/transreid.py:31 camera_to_view` |
-| Backbone ViT-S + SIE + JPM | ✅ Có sẵn | `config.py:116`, `pipelines/transreid.py` |
-| AMP trong pipeline TransReID | ❌ **Chưa có** (chỉ `bnneck.py:105` có) | — |
-| **Attribute trả về trong `__getitem__`** | ❌ `TransReIDDataset` chỉ trả `(img, pid, camid)` | `data.py:195` |
-| Semantic tree / `tree_paths` | ❌ Chưa có | — |
-| CV-HWC loss | ❌ Chưa có (`losses.py` chỉ có Triplet + attr loss) | — |
-| Hyperbolic head | ❌ Chưa có (chưa cài `geoopt`) | — |
-| H-mAP / AC@k / MS | ❌ Chưa có | — |
-| CARGO dataset + VDT | ❌ Chưa có | — |
-
-**Ba rủi ro kỹ thuật cần chốt sớm (Week 1–2):**
-
-1. **Batch hiện là 32 (P=8×K=4), cần nâng lên 128** — xem mục ràng buộc phần cứng. Rủi ro cao nhất còn lại, vì nó vừa là ràng buộc VRAM vừa quyết định loss có hoạt động hay không.
-2. `RandomIdentitySampler` không đảm bảo mỗi ID có cả 2 view trong batch → `β_cross` sẽ không bao giờ kích hoạt. KB §7.3 cảnh báo đây là lỗi phổ biến số 1.
-3. `load_track_attributes` chỉ đọc split `train` của MAT file — cần xác nhận có phủ hết ID train không, và `track_key()` (`P0000T02140A0` → `0000021400`) map đúng không.
-
-> ✅ **Rủi ro "chưa có view label" đã được gỡ bỏ.** `pipelines/transreid.py:31` đã có `camera_to_view()` với mapping `C0=aerial, C2=wearable, C3=CCTV`. BA-01 chuyển từ "xây từ đầu" thành "verify + refactor ra module dùng chung". Tiết kiệm ~1 tuần trên critical path.
+**(2) `α` khởi tạo** chưa có cơ sở. Nếu `L_MG` khác scale `L_ID + L_tri` thì 1.0
+lệch.
 
 ---
 
-## 1. Kiến trúc module đề xuất (file mới)
+## 7. Hạ tầng đã có
 
-```
-reid_advance/
-├── hierarchy/                       ← MỚI, toàn bộ đóng góp nằm ở đây
-│   ├── __init__.py
-│   ├── view_map.py                  # camera_id → {A, G}; VSS computation
-│   ├── tree.py                      # build tree (manual / cluster / feature / random)
-│   ├── tree_paths.py                # id → path tensor (B, L)
-│   ├── losses.py                    # cv_hwc_loss, level-aware prototype loss
-│   ├── hyperbolic.py                # PoincareBall wrapper (geoopt), exp_map, clip
-│   └── metrics.py                   # H-mAP, AC@k, Mistake Severity
-├── data.py                          # +ViewBalancedPKSampler, +HierarchyDataset
-├── pipelines/
-│   └── hierarchy_reid.py            # MỚI: pipeline chính (TransReID + CV-HWC)
-└── ...
-tools/
-├── compute_vss.py                   # MỚI: sinh Table 1 của bài báo
-├── build_tree.py                    # MỚI: sinh + dump cây ra JSON
-└── plot_poincare.py                 # MỚI: Fig. 1 / Fig. 4
-tests/                               ← MỚI
-├── test_data_assumptions.py
-├── test_tree_paths.py
-├── test_cv_hwc_loss.py
-├── test_view_sampler.py
-├── test_hyperbolic.py
-└── test_hierarchy_metrics.py
-```
+| công cụ | dùng để |
+|---|---|
+| `tools/camera_pair_matrix.py` | ma trận cặp camera AG-ReID.v2 |
+| `tools/cargo_camera_pair_matrix.py` | ma trận CARGO + guard ID-chung + per-camera |
+| `tools/gap_vs_capability.py` | hai đường cong, hai định nghĩa gap |
+| `tools/compute_vss.py` | View Stability Score |
+| `tools/compute_gss.py` | Granularity probe (kết quả inconclusive) |
+| `tools/audit_attributes.py` | audit attribute |
+| `tools/profile_memory.py` | VRAM vs batch |
+| `reid_advance/cargo.py` | CARGO adapter |
+| `reid_advance/hierarchy/` | view_map, granularity, vss |
+| `tests/` (75 test) | giả định dữ liệu, view map, granularity, VSS, CARGO |
 
-Entry point mới: `python run.py hierarchy --tree manual --geometry euclid`
-
-Nguyên tắc: **không sửa phá vỡ** `transreid.py` — baseline phải chạy được nguyên trạng suốt dự án để so sánh công bằng.
+**Cấu hình đã chốt**: ViT-S/16, 256×128, batch 32 (giữ để so được với
+AG-ReID.v2 — VRAM còn dư nhiều nhưng đổi batch là đổi công thức), AMP bật,
+CARGO 30 epoch (trần của công thức).
 
 ---
 
-## 2. Ba vai trò
+## 8. Bài học phương pháp — áp cho mọi bước sau
 
-Ba vai trò chạy **song song có checkpoint đồng bộ**, không tuần tự.
+Ghi lại vì mỗi cái đều suýt cho kết luận sai:
 
-### 🧭 BA (Business / Research Analyst)
-Sở hữu: dữ liệu, cây ngữ nghĩa, định vị nghiên cứu, metrics spec, viết bài.
-Không viết code training; có viết code phân tích dữ liệu và visualization.
-
-### 🤖 AI-ENGINEER
-Sở hữu: loss, sampler, model head, pipeline training, chạy thí nghiệm.
-
-### 🔍 QC (Quality Control)
-Sở hữu: unit test, reproducibility, kiểm chứng số liệu, chống lỗi thầm lặng.
-**Quyền phủ quyết**: không con số nào được đưa vào bảng bài báo nếu QC chưa ký.
-
----
-
-## 3. Backlog chi tiết
-
-### PHASE 0 — Foundation (Week 1–4)
-
-| ID | Vai trò | Task | Deliverable | Definition of Done |
-|---|---|---|---|---|
-| **AI-00** | AI | **Memory profiling (làm trước tất cả)**. Bật AMP cho `transreid.py`; đo VRAM thực tế ở batch 32/64/96/128 với ViT-S 256×128 | Bảng VRAM vs batch | Chốt được batch lớn nhất chạy ổn định trên 12GB. Nếu 128 không vừa, áp thứ tự fallback (ưu tiên giữ P hơn K) |
-| **BA-01** | BA | **Verify** `camera_to_view()` (`transreid.py:31`, `C0=aerial/C2=wearable/C3=CCTV`) rồi refactor ra `hierarchy/view_map.py` dùng chung | `docs/view_mapping.md` + `reid_advance/hierarchy/view_map.py` | Đối chiếu với 4 file `exp*.txt` xác nhận mapping đúng; mọi ảnh `train_all`/`query`/`gallery` có view; 0 `unknown`. Chốt quy ước binary: ground = {cctv, wearable} |
-| **BA-02** | BA | Audit `qut_attribute_v8.mat`: in 15 nhóm, số class, phân bố, tỉ lệ `unknown` mỗi nhóm, độ phủ ID train | `docs/attribute_audit.md` | Xác nhận attribute ở **mức identity** (mọi ảnh cùng ID có cùng vector). Nếu sai giả định này → báo động đỏ ngay |
-| **BA-03** | BA | Tính entropy mỗi nhóm + mutual information giữa 15 nhóm | Bảng MI 15×15 | Loại nhóm entropy quá thấp, cặp MI quá cao |
-| **AI-01** | AI | Reproduce TransReID-S baseline trên AG-ReID.v2, exp1 (A→CCTV) + exp4 (CCTV→A), ở **batch đã chốt từ AI-00** | Log + checkpoint | Baseline ổn định, 3 seed std < 0.5% mAP. Đây là **baseline nội bộ trên ViT-S**, không kỳ vọng khớp số ViT-B của paper gốc — ghi rõ điều này trong bài |
-| **AI-02** | AI | Mở rộng dataset → trả `(img, pid, camid, view, attr_vec)` | patch `data.py` | Pipeline baseline hiện có vẫn chạy không đổi |
-| **AI-03** | AI | Train 15 attribute classifier riêng, đo acc trên aerial vs ground → **View Stability Score** | `tools/compute_vss.py` + VSS table | Có acc(aerial) và acc(ground) cho từng attribute |
-| **QC-01** | QC | Dựng `pytest` scaffold + script CI; seed-lock toàn repo | `tests/`, `pytest.ini` | `pytest` xanh; baseline 3 seed cho std < 0.5% mAP |
-| **QC-02** | QC | Test kiểm chứng giả định dữ liệu | `tests/test_data_assumptions.py` | Fail nếu bất kỳ ID nào có 2 vector attribute khác nhau, hoặc ảnh nào không có view |
-| **BA-04** | BA | Từ VSS → thiết kế cây manual (variant a), ghi rõ lý do thứ tự tầng | `docs/tree_design.md` + `trees/manual.json` | Mọi tầng attribute có VSS ≥ 65%, entropy hợp lý, mỗi nhánh ≥ 20 ID |
-
-> **Gate 1 (cuối Week 4)** — baseline khớp paper + view map đúng + cây manual có bằng chứng VSS. QC ký duyệt mới sang Phase 1.
-
----
-
-### PHASE 1 — Core Loss (Week 5–8)
-
-| ID | Vai trò | Task | Deliverable | DoD |
-|---|---|---|---|---|
-| **AI-04** | AI | `ViewBalancedPKSampler`: P ID × (K/2 aerial + K/2 ground), có fallback + log tỉ lệ | `data.py` | P=16, K=8; log tỉ lệ cross-view pair mỗi batch |
-| **QC-03** | QC | Test sampler đo trực tiếp trên batch thật | `tests/test_view_sampler.py` | Đo trực tiếp tỉ lệ ID có đủ 2 view — **không tin log của AI** |
-| **AI-05** | AI | `tree_paths.py`: identity → tensor `(L,)`; loader trả `(B, L)` | `hierarchy/tree_paths.py` | Path consistency: node con luôn kéo theo đúng node cha |
-| **AI-06** | AI | `cv_hwc_loss` theo pseudo-code KB §8.2 | `hierarchy/losses.py` | Hỗ trợ `geometry ∈ {euclid, hyperbolic}` |
-| **QC-04** | QC | Unit test loss trên cây giả + embedding giả | `tests/test_cv_hwc_loss.py` | Kiểm: (1) `ell` dùng **cumprod** không phải sum — hai mẫu khác Gender nhưng tình cờ cùng màu áo phải cho `ell=0`; (2) `w = λ^(L−ell)` giảm đúng theo tầng; (3) `β=1` khi cùng view, `β=β_cross` khi khác view; (4) λ→0 hội tụ về SupCon; (5) gradient finite, không NaN |
-| **AI-07** | AI | Pipeline `hierarchy_reid.py`, loss tổng `L_ID + L_tri + α·L_CV-HWC` | `pipelines/hierarchy_reid.py` | `python run.py hierarchy` chạy end-to-end |
-| **AI-08** | AI | Train HWC-only (β=1) so với baseline | Log + bảng | So sánh mAP, R-1, H-mAP |
-| **BA-05** | BA | Định nghĩa + implement H-mAP, AC@k, Mistake Severity (C4) | `hierarchy/metrics.py` + `docs/metrics_spec.md` | Công thức viết ra spec trước khi code |
-| **QC-05** | QC | Test metrics trên case biên tính tay được | `tests/test_hierarchy_metrics.py` | H-mAP với `L=1` phải bằng mAP thường; MS=0 khi rank-1 đúng hết |
-
-> **Gate 2 (cuối Week 8)** — **H-mAP phải tăng**, kể cả nếu mAP chưa tăng. Nếu H-mAP không tăng → loss hoặc cây sai; chạy phác đồ debug KB §12.2 theo đúng thứ tự.
-
----
-
-### PHASE 2 — Cross-View + Ablation (Week 9–12)
-
-| ID | Vai trò | Task | DoD |
-|---|---|---|---|
-| **AI-09** | AI | Bật β_cross; grid tune λ∈{0.1,0.3,0.5,0.7,0.9}, β∈{1,1.5,2,3}, α∈{0.5,1,2} | Ablation D |
-| **AI-10** | AI | Ablation A — từng thành phần cộng dồn | Bảng 4 dòng |
-| **BA-06** | BA | Xây cây variant (b) hierarchical clustering trên vector attribute + (c) feature clustering trên ground feature + **(d) random tree** | `trees/*.json` |
-| **AI-11** | AI | Ablation B (4 loại cây) + Ablation C (L = 2,3,4,5) | 2 bảng |
-| **QC-06** | QC | **Kiểm chứng random tree KHÔNG hiệu quả**. Nếu random tree cũng cải thiện → báo động: đóng góp chỉ là regularization, không phải hierarchy | Chạy random tree ≥3 seed |
-| **QC-07** | QC | Xác nhận không tụt trên protocol view-homogeneous (A→A, G→G) | Bảng phụ |
-
-> **Gate 3 (cuối Week 12)** — mAP vượt baseline ≥ +1.0% trên A→G. Nếu không → phác đồ debug §12.2; cân nhắc đổi khung sang bài analysis (KB §12.2 mục 6).
-
----
-
-### PHASE 3 — Hyperbolic (Week 13–16)
-
-| ID | Vai trò | Task | DoD |
-|---|---|---|---|
-| **AI-12** | AI | Cài `geoopt`; `hyperbolic.py` với `PoincareBall`, exp_map, **clip norm ≤ 1−1e-5**, Riemannian Adam | Không NaN sau 120 epoch |
-| **QC-08** | QC | Numerical stability test: điểm gần biên ball, float32, gradient finite | `tests/test_hyperbolic.py` |
-| **AI-13** | AI | Pre-embed prototype cây vào Poincaré ball; `L_proto` với γ tăng dần theo depth; entailment cone constraint | Đo được distortion của tree embedding |
-| **AI-14** | AI | Ablation E: d ∈ {32,64,128,256,768}, Euclid vs Hyperbolic | Figure đường cong mAP theo d |
-| **BA-07** | BA | Poincaré disk visualization (Fig. 1 teaser + Fig. 4) | `tools/plot_poincare.py` |
-
-> **Gate 4** — hyperbolic thắng Euclid rõ rệt ở d ≤ 64. Nếu không, hạ C3 xuống ablation phụ, không bỏ bài.
-
----
-
-### PHASE 4 — Scale-out & thí nghiệm sinh tử (Week 17–20)
-
-| ID | Vai trò | Task | DoD |
-|---|---|---|---|
-| **BA-08** | BA | Tải CARGO (repo `LinlyAC/VDT-AGPReID`); pseudo-attribute bằng CLIP hoặc PAR model, majority vote ở mức ID | Cây CARGO + doc phương pháp (→ contribution C5) |
-| **AI-15** | AI | Train + eval trên CARGO A→G, G→A | Cột CARGO của bảng chính |
-| **AI-16** | AI | **THÍ NGHIỆM SINH TỬ**: clone VDT repo, gắn CV-HWC vào → `VDT + CV-HWC` vs `VDT` | Dòng quyết định số phận bài báo |
-| **AI-17** | AI | AG-ReID.v1 + cross-dataset generalization (train v2 → test CARGO) | Bảng phụ |
-| **QC-09** | QC | Mọi cấu hình chính chạy **≥3 seed**, report mean±std | Không con số nào trong bài là 1-seed |
-| **QC-10** | QC | Đo #params + inference time so với VDT/TransReID | Chứng minh không nặng hơn (VDT nhấn mạnh điểm này) |
-| **BA-09** | BA | Qualitative retrieval figure (Fig. 5): baseline sai "thô bạo" vs ta sai "lịch sự" | Fig. 5 |
-
----
-
-### PHASE 5 — Viết bài (Week 21–24)
-
-| ID | Vai trò | Task |
-|---|---|---|
-| **BA-10** | BA | Viết Method + Experiments (phần dễ, viết trước) |
-| **BA-11** | BA | Viết Intro + Related Work + Abstract (viết cuối) |
-| **BA-12** | BA | Chuẩn bị bảng rebuttal theo KB §12.1 |
-| **AI-18** | AI | Dọn code, README, script reproduce, chuẩn bị release |
-| **QC-11** | QC | Chạy full checklist KB §14; verify mọi con số trong bài truy được về log gốc |
-| **QC-12** | QC | Fresh-clone reproduce: clone sạch → chạy script → ra đúng số bảng chính |
-
----
-
-## 4. Ma trận phụ thuộc (critical path)
-
-```
-AI-00 (batch/VRAM) ─┬─→ AI-01 (baseline) ────────────────────→ mọi so sánh
-                    ├─→ AI-04 (sampler) ─→ AI-09 (β_cross) ──→ Gate 3
-                    └─→ BA-04 (chốt độ sâu cây L) ─→ AI-05 ─→ AI-06 ─→ Gate 2
-BA-01 (verify view map) ─→ AI-02, AI-04, QC-02
-BA-02 (attr audit) ─→ BA-03 ─→ BA-04
-AI-03 (VSS) ────────────────→ BA-04
-                                 AI-06 ─→ AI-12 (hyperbolic) ─→ Gate 4
-                                 AI-06 ─→ AI-16 (VDT + CV-HWC) ← quyết định số phận
-```
-
-**AI-00 là blocker số 1** (thay cho BA-01 ở bản trước). Batch khả dụng quyết định độ sâu cây tối đa, mà cây là nền của mọi thứ phía sau. Đo trước, thiết kế sau.
-
----
-
-## 5. Rủi ro & giảm thiểu
-
-| Rủi ro | Xác suất | Tác động | Giảm thiểu |
-|---|---|---|---|
-| **Batch 128 không vừa 12GB → phải giảm → cây đói positive** | **Cao** | **Cao** | AI-00 đo trước tiên. Fallback ưu tiên giữ P hơn K. Nếu buộc về batch 64, **giảm cây xuống L=3** (đừng cố giữ L=4) |
-| Batch không đủ cross-view pair | **Cao** | Cao | AI-04 + QC-03 đo trực tiếp trên batch, không tin log |
-| Attribute không ổn định trong 1 ID | Thấp | Chí mạng | QC-02 test tự động; nếu sai → majority vote ở mức ID |
-| Hyperbolic NaN / instability | Cao | Trung bình | Clip norm, float32, QC-08; sẵn sàng hạ C3 xuống ablation |
-| `VDT + CV-HWC` không cho gain | Trung bình | Cao | Vẫn còn C1/C2/C4; đổi framing sang analysis paper |
-| mAP gain < 1% | Trung bình | Cao | C4 metrics + Ablation E (d thấp) là trục thắng dự phòng |
-| VDT (fast-reid) không chạy nổi trên 12GB | Trung bình | Cao | Chạy VDT ở ViT-S + batch đã chốt; nếu vẫn không nổi, so gián tiếp và ghi rõ trong Limitations |
-| Thời gian train dài do GPU đơn 12GB | **Cao** | Trung bình | Ưu tiên C4 + Ablation B (eval-only, rẻ). Cắt Ablation D xuống grid thưa hơn nếu cần |
-| ~~Không map được camera → view~~ | — | — | ✅ **Đã gỡ** — `transreid.py:31` đã có |
-
----
-
-## 6. Việc cần làm ngay (Week 1, ngày 1–3)
-
-1. **AI-00 (trước tất cả)** — bật AMP cho `transreid.py`, đo VRAM ở batch 32/64/96/128 trên ViT-S. **Chốt batch trước khi ai làm gì khác**, vì nó quyết định độ sâu cây tối đa và do đó quyết định thiết kế của BA-04.
-2. **BA-01** — verify `camera_to_view()` (`transreid.py:31`) đối chiếu 4 file `exp*.txt`, refactor ra `hierarchy/view_map.py`.
-3. **BA-02** — mở rộng `tools/inspect_attributes.py` → audit `qut_attribute_v8.mat`.
-4. **AI-01** — khởi động baseline TransReID-S ở batch đã chốt (chạy nền, mất vài ngày).
-5. **QC-01** — dựng `tests/`, seed-lock.
-
-> **AI-00 chặn BA-04**: nếu batch cuối cùng chỉ đạt 64, cây phải thiết kế L=3 chứ không phải L=4. BA đừng chốt cây trước khi có kết quả AI-00.
-
----
-
-## 7. Prompt bàn giao cho agent
-
-Ba file prompt riêng ở `.claude/docs/agents/` — mỗi agent đọc: KB + plan này + prompt vai trò của mình.
-
-- `.claude/docs/agents/ba.md`
-- `.claude/docs/agents/ai_engineer.md`
-- `.claude/docs/agents/qc.md`
+1. **Same-view control**: giữ bộ lọc cross-camera. Bug `+100` vào camid biến nó
+   thành retrieval trong cùng camera → gap ảo +22.7% thay vì thật −1.59%.
+2. **Ô ma trận mỏng**: đếm ID-chung, gạch ô dưới ngưỡng. Ô rỗng gallery trông
+   giống ô khó.
+3. **Một camera hỏng**: kiểm per-camera trước khi kết luận. Cam1 chiếm 7/8 cặp
+   khó nhất CARGO — nhưng loại nó gap vẫn +11.6%.
+4. **Hội tụ**: đo theo đại lượng đang dùng (hình dạng ma trận, rank-corr
+   0.9973), không theo mAP.
+5. **Ngưỡng cố định đọc sai ca biên**: verdict slope −0.15 gán nhầm "FLAT" cho
+   AG-ReID.v2 — gap khởi điểm gần 0 không thể có slope dốc dù bị xóa sạch.
+6. **Control vô dụng thì loại**: random-init cho 1.3% phẳng, không định vị được
+   gì. Không giữ lại cho bảng trông đầy.
+7. **Trích số đúng trục**: `−1.11%` (GSS) khác `−1.59%` (ma trận cặp camera).
+   Tôi đã trích nhầm vài lượt.
