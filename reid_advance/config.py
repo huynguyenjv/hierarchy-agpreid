@@ -129,6 +129,9 @@ class TransReIDConfig(BaseConfig):
     # AMP was already active in this pipeline; the flag only exists so memory
     # profiling and ablations can turn it off without editing the trainer.
     use_amp: bool = True
+    # Save every evaluated epoch so the camera-pair gap can be measured as a
+    # function of model capability rather than at the single best checkpoint.
+    snapshot_epochs: bool = False
 
 
 @dataclass
@@ -347,8 +350,9 @@ class CargoConfig(TransReIDConfig):
     # 2,500 training identities against AG-ReID.v2's 807.
     expected_train_identities: int = 2500
     strict_dataset_integrity: bool = False
-    # 10 min/epoch at batch 32; 30 epochs converges and keeps the run to ~5h.
-    # Absolute mAP is not the point here, the camera-pair spread is.
+    # 30 epochs is the ceiling of this recipe on CARGO, not under-training:
+    # mAP went 42.1 -> 45.5 -> 46.9 -> 46.6 across epochs 10/20/25/30 while the
+    # train loss kept falling, which is overfitting, not room to grow.
     epochs: int = 30
     # Evaluate every 5 epochs so the camera-pair matrix can be recomputed at
     # several points; convergence is judged by the matrix settling, not by mAP.

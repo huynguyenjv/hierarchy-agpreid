@@ -212,6 +212,25 @@ def train_transreid(cfg: TransReIDConfig):
             print(f"TransReID epoch {epoch:03d} | Rank-1 {rank1:.2%} | mAP {mean_ap:.2%}")
             writer.add_scalar("Evaluation/rank1", rank1, epoch)
             writer.add_scalar("Evaluation/mAP", mean_ap, epoch)
+
+            # Snapshot every evaluated epoch, not just the best one. The
+            # camera-pair gap has to be measurable as a function of model
+            # capability, and a best-only checkpoint answers that for exactly
+            # one point on the curve.
+            if getattr(cfg, "snapshot_epochs", False):
+                torch.save(
+                    {
+                        "model": model.state_dict(),
+                        "config": cfg.__dict__,
+                        "epoch": epoch,
+                        "rank1": rank1,
+                        "mAP": mean_ap,
+                        "identity_scheme": IDENTITY_SCHEME,
+                        "train_identity_count": dataset.num_classes,
+                    },
+                    os.path.join(cfg.output_dir, f"epoch_{epoch:03d}.pth"),
+                )
+
             if mean_ap > best_map:
                 best_map = mean_ap
                 best_rank1 = rank1
