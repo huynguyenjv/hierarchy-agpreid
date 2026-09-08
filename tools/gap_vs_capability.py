@@ -19,6 +19,15 @@ spanning each dataset's own capability range, and see which way it moves.
     gap holds or grows as mAP rises        ->  intrinsic; capability alone does
                                                not remove it
 
+Which number to compare against AG-ReID.v2: its camera-pair matrix gives
+ground-ground 71.59% against aerial-ground 73.18%, a gap of **-1.59%**. Do not
+quote the -1.11% that appears in the GSS report - that came from a different
+measurement (protocol cross-view against a hand-built same-view control) and is
+not on the same axis as anything here.
+
+AG-ReID.v2 has no aerial-aerial pairs, so its "all same-platform" and
+"ground-only" gaps are the same number; the distinction only bites on CARGO.
+
 Two curves are stronger evidence than one matched pair, because they cannot be
 dismissed as a comparison made at one arbitrarily chosen operating point.
 
