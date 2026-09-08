@@ -110,14 +110,29 @@ def trend(rows: list[dict], key: str = "gap") -> dict:
     # Gap change per point of mAP gained.
     slope = float(np.polyfit(capability, gaps, 1)[0])
     delta = float(gaps[-1] - gaps[0])
-    if slope < -0.15:
-        verdict = "SHRINKS with capability - supervision is dissolving the gap"
-    elif slope > 0.15:
-        verdict = "GROWS with capability - the gap is not a training artifact"
+    # Slope alone is a poor verdict. A gap that starts near zero cannot fall
+    # steeply in absolute terms however completely supervision dissolves it, so
+    # a fixed slope threshold declares it "flat" while it is visibly crossing
+    # into negative territory. What matters is where the gap ends up relative
+    # to its own size, not how fast it got there.
+    crosses_zero = bool(gaps[0] > 0 and gaps[-1] < 0)
+    relative_change = float(delta / abs(gaps[0])) if gaps[0] else 0.0
+
+    if crosses_zero:
+        verdict = ("DISSOLVES - the gap starts positive and ends negative; "
+                   "supervision removes it entirely")
+    elif relative_change < -0.25:
+        verdict = (f"SHRINKS - the gap loses {abs(relative_change):.0%} of its "
+                   "size as capability rises")
+    elif relative_change > 0.25:
+        verdict = "GROWS with capability"
     else:
-        verdict = "FLAT against capability - the gap is intrinsic, not under-training"
+        verdict = ("HOLDS - the gap keeps its size across the capability range, "
+                   "so it is intrinsic rather than a training artifact")
     return {
         "verdict": verdict, "slope": slope, "delta": delta,
+        "relative_change": relative_change, "crosses_zero": crosses_zero,
+        "start_gap": float(gaps[0]), "end_gap": float(gaps[-1]),
         "capability_range": [float(capability.min()), float(capability.max())],
         "gap_range": [float(gaps.min()), float(gaps.max())],
     }

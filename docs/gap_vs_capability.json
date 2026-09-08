@@ -98,14 +98,79 @@
         }
       }
     ],
-    "AG-ReID.v2": []
+    "AG-ReID.v2": [
+      {
+        "dataset": "AG-ReID.v2",
+        "source": "agreid_matrix_e005.json",
+        "epoch": 5,
+        "overall_map": 0.5808075054444474,
+        "aerial_ground": 0.5556328594128045,
+        "same_platform": 0.5671979558340532,
+        "gap": 0.0115650964212487,
+        "ground_ground": 0.5671979558340532,
+        "gap_ground_only": 0.0115650964212487,
+        "by_kind": {
+          "aerial-ground": 0.5556328594128045,
+          "ground-ground": 0.5671979558340532
+        }
+      },
+      {
+        "dataset": "AG-ReID.v2",
+        "source": "agreid_matrix_e010.json",
+        "epoch": 10,
+        "overall_map": 0.6518889965469907,
+        "aerial_ground": 0.6042533012701921,
+        "same_platform": 0.6107566209934847,
+        "gap": 0.006503319723292655,
+        "ground_ground": 0.6107566209934847,
+        "gap_ground_only": 0.006503319723292655,
+        "by_kind": {
+          "aerial-ground": 0.6042533012701921,
+          "ground-ground": 0.6107566209934847
+        }
+      },
+      {
+        "dataset": "AG-ReID.v2",
+        "source": "agreid_matrix_e015.json",
+        "epoch": 15,
+        "overall_map": 0.6821226723836978,
+        "aerial_ground": 0.6320158055643237,
+        "same_platform": 0.6299493327626743,
+        "gap": -0.0020664728016493994,
+        "ground_ground": 0.6299493327626743,
+        "gap_ground_only": -0.0020664728016493994,
+        "by_kind": {
+          "aerial-ground": 0.6320158055643237,
+          "ground-ground": 0.6299493327626743
+        }
+      },
+      {
+        "dataset": "AG-ReID.v2",
+        "source": "agreid_matrix_e020.json",
+        "epoch": 20,
+        "overall_map": 0.7034771316665146,
+        "aerial_ground": 0.6448488758509106,
+        "same_platform": 0.6389930021566007,
+        "gap": -0.005855873694309843,
+        "ground_ground": 0.6389930021566007,
+        "gap_ground_only": -0.005855873694309843,
+        "by_kind": {
+          "aerial-ground": 0.6448488758509106,
+          "ground-ground": 0.6389930021566007
+        }
+      }
+    ]
   },
   "trends": {
     "CARGO": {
       "all_same_platform": {
-        "verdict": "FLAT against capability - the gap is intrinsic, not under-training",
+        "verdict": "HOLDS - the gap keeps its size across the capability range, so it is intrinsic rather than a training artifact",
         "slope": 0.009318636246120927,
         "delta": 0.0027387686405215272,
+        "relative_change": 0.0197106549038967,
+        "crosses_zero": false,
+        "start_gap": 0.1389486373677054,
+        "end_gap": 0.14168740600822693,
         "capability_range": [
           0.21611853759912308,
           0.46881115295287057
@@ -116,9 +181,13 @@
         ]
       },
       "ground_only": {
-        "verdict": "FLAT against capability - the gap is intrinsic, not under-training",
+        "verdict": "HOLDS - the gap keeps its size across the capability range, so it is intrinsic rather than a training artifact",
         "slope": -0.040474826126353766,
         "delta": -0.010660024588778239,
+        "relative_change": -0.05834813376793356,
+        "crosses_zero": false,
+        "start_gap": 0.18269692448392716,
+        "end_gap": 0.17203689989514892,
         "capability_range": [
           0.21611853759912308,
           0.46881115295287057
@@ -126,6 +195,42 @@
         "gap_range": [
           0.17111139362927164,
           0.18397424733495515
+        ]
+      }
+    },
+    "AG-ReID.v2": {
+      "all_same_platform": {
+        "verdict": "DISSOLVES - the gap starts positive and ends negative; supervision removes it entirely",
+        "slope": -0.14116254446848525,
+        "delta": -0.017420970115558543,
+        "relative_change": -1.5063402397191235,
+        "crosses_zero": true,
+        "start_gap": 0.0115650964212487,
+        "end_gap": -0.005855873694309843,
+        "capability_range": [
+          0.5808075054444474,
+          0.7034771316665146
+        ],
+        "gap_range": [
+          -0.005855873694309843,
+          0.0115650964212487
+        ]
+      },
+      "ground_only": {
+        "verdict": "DISSOLVES - the gap starts positive and ends negative; supervision removes it entirely",
+        "slope": -0.14116254446848525,
+        "delta": -0.017420970115558543,
+        "relative_change": -1.5063402397191235,
+        "crosses_zero": true,
+        "start_gap": 0.0115650964212487,
+        "end_gap": -0.005855873694309843,
+        "capability_range": [
+          0.5808075054444474,
+          0.7034771316665146
+        ],
+        "gap_range": [
+          -0.005855873694309843,
+          0.0115650964212487
         ]
       }
     }

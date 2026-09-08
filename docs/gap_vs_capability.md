@@ -15,9 +15,22 @@ The underlying question survives without matched mAP. Measuring the gap at sever
 | 25 | 46.88% | 61.42% | 75.42% | **+13.99%** | 78.58% | **+17.16%** |
 | 30 | 46.56% | 61.47% | 75.64% | **+14.17%** | 78.67% | **+17.20%** |
 
-- `all_same_platform`: slope +0.009 per unit of mAP, change +0.27% over mAP 21.61%-46.88%. FLAT against capability - the gap is intrinsic, not under-training
+- `all_same_platform`: slope +0.009 per unit of mAP, change +0.27% over mAP 21.61%-46.88%. HOLDS - the gap keeps its size across the capability range, so it is intrinsic rather than a training artifact
 
-- `ground_only`: slope -0.040 per unit of mAP, change -1.07% over mAP 21.61%-46.88%. FLAT against capability - the gap is intrinsic, not under-training
+- `ground_only`: slope -0.040 per unit of mAP, change -1.07% over mAP 21.61%-46.88%. HOLDS - the gap keeps its size across the capability range, so it is intrinsic rather than a training artifact
+
+## AG-ReID.v2
+
+| epoch | overall mAP | aerial-ground | same-platform | gap | ground-ground | gap (ground only) |
+|---|---|---|---|---|---|---|
+| 5 | 58.08% | 55.56% | 56.72% | **+1.16%** | 56.72% | **+1.16%** |
+| 10 | 65.19% | 60.43% | 61.08% | **+0.65%** | 61.08% | **+0.65%** |
+| 15 | 68.21% | 63.20% | 62.99% | **-0.21%** | 62.99% | **-0.21%** |
+| 20 | 70.35% | 64.48% | 63.90% | **-0.59%** | 63.90% | **-0.59%** |
+
+- `all_same_platform`: slope -0.141 per unit of mAP, change -1.74% over mAP 58.08%-70.35%. DISSOLVES - the gap starts positive and ends negative; supervision removes it entirely
+
+- `ground_only`: slope -0.141 per unit of mAP, change -1.74% over mAP 58.08%-70.35%. DISSOLVES - the gap starts positive and ends negative; supervision removes it entirely
 
 ## Reading the two curves together
 

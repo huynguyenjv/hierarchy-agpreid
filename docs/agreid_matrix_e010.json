@@ -1,0 +1,93 @@
+{
+  "checkpoint": "outputs/transreid_curve/epoch_010.pth",
+  "random_init": false,
+  "trained_on": "train_all",
+  "epoch": 10,
+  "reported_map": 0.6518889965469907,
+  "pairs": {
+    "C0->C2": {
+      "query_camera": 0,
+      "gallery_camera": 2,
+      "query_platform": "aerial",
+      "gallery_platform": "wearable",
+      "cross_platform": true,
+      "map": 0.6151363725143321,
+      "rank1": 0.7360308170318604,
+      "identities": 519,
+      "gallery_images": 15252
+    },
+    "C0->C3": {
+      "query_camera": 0,
+      "gallery_camera": 3,
+      "query_platform": "aerial",
+      "gallery_platform": "cctv",
+      "cross_platform": true,
+      "map": 0.6258687988165895,
+      "rank1": 0.7752808928489685,
+      "identities": 534,
+      "gallery_images": 8158
+    },
+    "C2->C0": {
+      "query_camera": 2,
+      "gallery_camera": 0,
+      "query_platform": "wearable",
+      "gallery_platform": "aerial",
+      "cross_platform": true,
+      "map": 0.5805920643351358,
+      "rank1": 0.7032755017280579,
+      "identities": 519,
+      "gallery_images": 25562
+    },
+    "C2->C3": {
+      "query_camera": 2,
+      "gallery_camera": 3,
+      "query_platform": "wearable",
+      "gallery_platform": "cctv",
+      "cross_platform": false,
+      "map": 0.6196297824394768,
+      "rank1": 0.7428571581840515,
+      "identities": 245,
+      "gallery_images": 8158
+    },
+    "C3->C0": {
+      "query_camera": 3,
+      "gallery_camera": 0,
+      "query_platform": "cctv",
+      "gallery_platform": "aerial",
+      "cross_platform": true,
+      "map": 0.5954159694147108,
+      "rank1": 0.7265917658805847,
+      "identities": 534,
+      "gallery_images": 25562
+    },
+    "C3->C2": {
+      "query_camera": 3,
+      "gallery_camera": 2,
+      "query_platform": "cctv",
+      "gallery_platform": "wearable",
+      "cross_platform": false,
+      "map": 0.6018834595474926,
+      "rank1": 0.7346938848495483,
+      "identities": 245,
+      "gallery_images": 15252
+    }
+  },
+  "by_kind": {
+    "aerial-ground": {
+      "pairs": 4,
+      "mean": 0.6042533012701921,
+      "min": 0.5805920643351358,
+      "max": 0.6258687988165895
+    },
+    "ground-ground": {
+      "pairs": 2,
+      "mean": 0.6107566209934847,
+      "min": 0.6018834595474926,
+      "max": 0.6196297824394768
+    }
+  },
+  "spread": 0.04527673448145375,
+  "aerial_ground_mean": 0.6042533012701921,
+  "ground_ground_mean": 0.6107566209934847,
+  "verdict": "FLAT - no pair is meaningfully harder than another, so there is no view gap left for a loss to close with this checkpoint"
+}
