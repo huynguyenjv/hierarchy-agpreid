@@ -51,6 +51,25 @@ Hai đường cong gap-vs-mAP trên cùng một trục. Đây là hình bán c�
 Ba cột aerial–ground / aerial–aerial / ground–ground trên CARGO, làm nổi việc
 aerial–aerial nằm giữa. Kèm chú thích AG-ReID.v2 không tạo được cột giữa.
 
+### BA-N2b — Mục "What we ruled out and why" (bắt buộc, không phải phụ lục)
+
+Đây là phần khó-bác nhất của bài và cũng là phần dễ bị bỏ nhất. Bốn negative
+control đã chạy, mỗi cái giết một giả thuyết — kể cả giả thuyết của chính nhóm:
+
+| control | giết cái gì | bằng chứng |
+|---|---|---|
+| **VSS** | attribute không làm được hierarchy | retention 0.86–1.07; 1/15 vượt ngưỡng |
+| **GSS** | granularity chưa phân hóa sẵn | tầng tương quan ≥0.96, mAP chênh 0.13–0.46% |
+| **random-init** | không định vị được gap | 1.3% phẳng — control vô dụng, và ta nói thế |
+| **same-view khả thi** | control chuẩn bất khả thi trên AG-ReID.v2 | 0 identity ≥2 camera aerial |
+
+Chèn giữa phần thí nghiệm và phần hàm ý. Nó chứng minh nhóm **không cherry-pick
+con đường tới kết luận** — một analysis paper sống bằng đúng điều đó.
+
+Nêu cả bug `+100` đã tự bắt: nó là minh chứng rẻ nhất rằng lỗi loại này **vô
+hình trong mọi chỉ số tổng hợp** (loss, training curve, mAP protocol đều bình
+thường suốt thời gian nó xảy ra).
+
 ### BA-N3 — Khuyến nghị phương pháp luận
 Phần bài mà cộng đồng dùng được ngay:
 - phân rã theo cặp camera, đừng chỉ báo mAP tổng hợp
@@ -73,11 +92,22 @@ Chuẩn bị trước ba câu chắc chắn bị hỏi:
 
 ---
 
+## Hai ràng buộc lên cách phát biểu (xem plan §2)
+
+**(R1) Phân rã hai hiệu ứng chỉ dựa CARGO.** AG-ReID.v2 có 0 cặp aerial-aerial
+nên không thể tham gia. Vai trò của nó là mệnh đề về **dấu** ("gap không dương
+đáng kể"), thứ chịu được 2 cặp. Đừng bắt nó gánh phân rã ba thành phần.
+
+**(R2) Claim "gap tan theo supervision" chỉ trên dải tự train**: +1.16% → −0.59%
+(mAP 58.1→70.4), đã qua 0 — đủ cho claim. Checkpoint 125-epoch có config khớp
+hoàn toàn nhưng không do run này sinh; nhắc nó như **xác nhận độc lập**, không
+phải mắt xích lập luận.
+
 ## Giới hạn phải nêu trong bài, không giấu
 
 1. **AG-ReID.v2 có 3 camera → 4 cặp a–g, 2 cặp g–g.** Con số ~1% mong manh hơn
-   +17% dựng trên 80/56 cặp của CARGO. Điều cứu nó: hướng nhất quán qua 4
-   checkpoint và khớp checkpoint 125-epoch độc lập.
+   +17% dựng trên 80/56 cặp của CARGO. Điều cứu nó: chỉ dùng cho claim về dấu
+   (R1), và hướng nhất quán qua 4 checkpoint tự train.
 2. **CARGO là synthetic (Unity3D).** Gap có thể phản ánh đặc tính render.
 3. **Backbone ViT-S, batch 32** — không đua SOTA tuyệt đối.
 4. **Không so được ở cùng mAP** (hai trần khác nhau) — đó chính là lý do dùng

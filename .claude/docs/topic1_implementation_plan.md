@@ -99,6 +99,29 @@ của bài toán. Trên một dataset supervision thường xóa sạch nó; tr�
 mAP tăng gấp đôi mà gap không co 1 điểm. Khác nhau về **kiểu**, không chỉ về độ
 khó — và kết luận này không phụ thuộc việc đặt hai model ở cùng mAP.
 
+### ⚠️ Hai ràng buộc lên cách phát biểu — không được vi phạm khi viết bài
+
+**(R1) Phân rã hai hiệu ứng CHỈ dựa vào CARGO.** AG-ReID.v2 có 4 cặp a–g, 2 cặp
+g–g và **0 cặp a–a** — nó về mặt cấu trúc không thể tham gia phân rã ba chiều.
+Hai dataset có hai vai trò khác nhau, đừng bắt cái sau gánh việc của cái trước:
+
+| dataset | vai trò | mệnh đề | yêu cầu dữ liệu |
+|---|---|---|---|
+| CARGO | chứng minh **cấu trúc** gap | phân rã aerial-intrinsic vs platform-transfer | 80/20/56 cặp — vững |
+| AG-ReID.v2 | chứng minh gap **không phổ quát** | chỉ về **dấu**: gap không dương đáng kể | 4/2 cặp — đủ cho claim về dấu |
+
+Một mệnh đề về dấu chịu được 2 cặp; một phân rã ba thành phần thì không.
+
+**(R2) Claim "gap tan theo supervision" chỉ dựa trên dải tự train.**
+Checkpoint 125-epoch (`outputs/transreid/best_model.pth`, mAP 75.47%,
+gap −1.59%) có config **khớp hoàn toàn** công thức hiện tại — cùng encoder,
+batch 32, lr 3e-5, JPM, SIE, grad_accum 2, warmup 10. Nhưng nó không do run này
+sinh ra, nên dùng nó làm điểm cuối của đường cong là trộn hai nguồn.
+
+Dải tự train **đã đủ**: +1.16% (mAP 58.1%) → **−0.59%** (mAP 70.4%), đã qua 0.
+Đó là toàn bộ những gì claim cần. Điểm 125-epoch chỉ được nhắc như **xác nhận
+độc lập**, không phải mắt xích trong lập luận.
+
 ### Phân rã hai hiệu ứng (chỉ CARGO đo được)
 
 | loại cặp | số cặp | mean mAP |
