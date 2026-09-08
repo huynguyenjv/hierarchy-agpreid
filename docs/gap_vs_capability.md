@@ -6,21 +6,30 @@ The underlying question survives without matched mAP. Measuring the gap at sever
 
 ## CARGO
 
-| epoch | overall mAP | aerial-ground | same-platform | gap |
-|---|---|---|---|---|
-| 5 | 21.61% | 33.63% | 47.53% | **+13.89%** |
-| 10 | 42.06% | 54.67% | 68.82% | **+14.14%** |
-| 15 | 41.88% | 56.72% | 71.82% | **+15.10%** |
-| 20 | 45.50% | 60.59% | 74.58% | **+13.99%** |
-| 25 | 46.88% | 61.42% | 75.42% | **+13.99%** |
-| 30 | 46.56% | 61.47% | 75.64% | **+14.17%** |
+| epoch | overall mAP | aerial-ground | same-platform | gap | ground-ground | gap (ground only) |
+|---|---|---|---|---|---|---|
+| 5 | 21.61% | 33.63% | 47.53% | **+13.89%** | 51.90% | **+18.27%** |
+| 10 | 42.06% | 54.67% | 68.82% | **+14.14%** | 72.65% | **+17.98%** |
+| 15 | 41.88% | 56.72% | 71.82% | **+15.10%** | 75.12% | **+18.40%** |
+| 20 | 45.50% | 60.59% | 74.58% | **+13.99%** | 77.70% | **+17.11%** |
+| 25 | 46.88% | 61.42% | 75.42% | **+13.99%** | 78.58% | **+17.16%** |
+| 30 | 46.56% | 61.47% | 75.64% | **+14.17%** | 78.67% | **+17.20%** |
 
-Slope +0.009 gap per unit of mAP, end-to-end change +0.27% over a capability range of 21.61%-46.88%.
+- `all_same_platform`: slope +0.009 per unit of mAP, change +0.27% over mAP 21.61%-46.88%. FLAT against capability - the gap is intrinsic, not under-training
 
-**FLAT against capability - the gap is intrinsic, not under-training**
+- `ground_only`: slope -0.040 per unit of mAP, change -1.07% over mAP 21.61%-46.88%. FLAT against capability - the gap is intrinsic, not under-training
 
 ## Reading the two curves together
 
 If AG-ReID.v2's gap falls towards zero as its model strengthens while CARGO's holds flat across its own range, then the two datasets differ in kind and not merely in difficulty: ordinary supervision is enough to erase the view gap on one and not on the other. That is the causal claim, and it does not require the two models to sit at the same mAP.
 
 If instead both curves fall and CARGO's has simply not fallen yet, the honest reading is that the gap is a function of supervision on both, and CARGO is only further from the point where it vanishes.
+
+## Two definitions of the gap
+
+The datasets are not built alike: AG-ReID.v2 has one aerial camera and therefore no aerial-aerial row, while CARGO has five. Comparing CARGO's full same-platform mean against AG-ReID.v2's would compare different quantities, so both are reported.
+
+- **gap** - aerial-ground against all same-platform pairs, pair-weighted. Uses everything a dataset offers.
+- **gap (ground only)** - aerial-ground against ground-ground alone. The one axis both datasets can produce, so this is the like-for-like comparison.
+
+If the two disagree about the shape of a curve, the ground-only definition governs any cross-dataset claim.

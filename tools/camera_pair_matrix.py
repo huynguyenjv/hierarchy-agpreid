@@ -252,11 +252,30 @@ def main() -> None:
         )
     print(f"\nverdict: {verdict}")
 
+    # Same schema as the CARGO matrix so both feed gap_vs_capability.py.
+    # AG-ReID.v2 has one aerial camera, so there is no aerial-aerial row here;
+    # that absence is exactly why the two datasets must also be compared on the
+    # ground-ground vs aerial-ground axis alone, which both can produce.
+    by_kind = {}
+    if aerial_ground:
+        by_kind["aerial-ground"] = {
+            "pairs": len(aerial_ground), "mean": float(np.mean(aerial_ground)),
+            "min": float(min(aerial_ground)), "max": float(max(aerial_ground)),
+        }
+    if ground_ground:
+        by_kind["ground-ground"] = {
+            "pairs": len(ground_ground), "mean": float(np.mean(ground_ground)),
+            "min": float(min(ground_ground)), "max": float(max(ground_ground)),
+        }
+
     payload = {
         "checkpoint": args.checkpoint,
         "random_init": args.random_init,
         "trained_on": saved.get("train_dir"),
+        "epoch": state.get("epoch"),
+        "reported_map": state.get("mAP"),
         "pairs": results,
+        "by_kind": by_kind,
         "spread": spread,
         "aerial_ground_mean": float(np.mean(aerial_ground)) if aerial_ground else None,
         "ground_ground_mean": float(np.mean(ground_ground)) if ground_ground else None,
