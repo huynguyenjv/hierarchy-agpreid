@@ -209,8 +209,21 @@ chúng tôi không claim giá trị tuyệt đối là hằng số"*. Caveat nà
 chính: nếu ai hỏi "sao +17 mà không +20", ta đã tự nói trước rằng cái claim là
 **dấu và tính bền theo supervision**, không phải con số thập phân.
 
-**Mốc thực tế**: dùng gap-baseline ở batch 128 **sau khi hội tụ**, chỉ để so ba
-nhánh method với nhau.
+**Mốc đã khóa** (`outputs/cargo_b128/epoch_070.pth`, mAP 45.54%, đã hội tụ —
+mAP quay đầu ở e80 và train loss tăng từ e74):
+
+| cấu hình | mAP | a–g | a–a | g–g | **gap (gg)** |
+|---|---|---|---|---|---|
+| batch 32, e30 (hội tụ) | 46.56% | 61.47% | 67.14% | 78.67% | **+17.20%** |
+| **batch 128, e70 (hội tụ)** | **45.54%** | **61.36%** | **66.34%** | **79.33%** | **+17.97%** |
+
+✅ **Gap KHÔNG phụ thuộc batch size.** So hai model **đều đã hội tụ** ở mAP gần
+bằng nhau: chênh 0.77 điểm. Con số +19.84% trước đó là của checkpoint **chưa
+hội tụ** — đúng như đã cảnh báo, so điểm-với-đường cho kết luận sai.
+
+Điều này **củng cố** trụ chính: gap trơ với cả mAP (25 điểm) lẫn batch size
+(4×). Caveat Limitations vẫn giữ, nhưng giờ có thêm bằng chứng rằng độ lớn khá
+ổn định. **Mốc cho ba nhánh: +17.97%.**
 
 Rẻ: một run vài giờ, và nó khóa mốc trước khi xây gì lên trên.
 
