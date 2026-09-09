@@ -127,11 +127,51 @@ def flatten_level(level_features: torch.Tensor, normalize: bool = True) -> torch
 
     Normalising per region keeps one high-norm body part from dominating the
     concatenated descriptor.
+
+    .. warning::
+       This alone is **not** enough to build a contrastive loss on. Raw ViT
+       tokens carry a large shared component - measured on a real batch, every
+       pair sits at cosine 0.993 +/- 0.001 whichever level it is pooled at, and
+       token norms are around 49. A SupCon term over these would see near
+       identical logits at tau=0.07, produce almost no gradient, and train
+       quietly to no effect. Retrieval works only because the ID head puts the
+       features through BNNeck first (its output sits at 0.0025 +/- 0.088).
+
+       Use :func:`decorrelate_level` before any similarity is taken. This
+       function is left as-is because the frozen-feature probes already
+       published used it and their numbers must stay reproducible.
     """
     if normalize:
         level_features = F.normalize(level_features, dim=-1)
     flattened = level_features.flatten(1)
     return F.normalize(flattened, dim=-1) if normalize else flattened
+
+
+def decorrelate_level(
+    level_features: torch.Tensor, norm: torch.nn.Module | None = None
+) -> torch.Tensor:
+    """Strip the shared component so a similarity has something to measure.
+
+    ``norm`` is a per-level ``BatchNorm1d``, mirroring the BNNeck the identity
+    head already relies on; pass the module so its statistics are learned and
+    shared across steps. Without one, the batch mean is subtracted directly,
+    which is enough for analysis but not for training.
+
+    Measured effect on one real batch of 128, at every level:
+
+        before   cosine 0.993 +/- 0.001   (nothing to discriminate)
+        after    cosine 0.000 +/- 0.09    (usable)
+
+    The resulting spread is near identical across levels (0.089 to 0.092), so a
+    per-level weighting acts on granularity rather than compensating for the
+    levels' different dimensionalities (384 up to 3072).
+    """
+    flattened = level_features.flatten(1)
+    if norm is not None:
+        flattened = norm(flattened)
+    else:
+        flattened = flattened - flattened.mean(dim=0, keepdim=True)
+    return F.normalize(flattened, dim=-1)
 
 
 def level_weights_for_view(

@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from reid_advance.hierarchy.granularity import (
+    decorrelate_level,
     GRANULARITY_LEVELS,
     GranularitySpec,
     flatten_level,
@@ -133,3 +134,62 @@ def test_zero_bias_makes_every_level_equal():
     """With no bias the weighting must not prefer any granularity."""
     weights = level_weights_for_view(4, torch.ones(2, 2), coarse_bias=0.0)
     assert torch.allclose(weights, torch.full((2, 2, 4), 0.25), atol=1e-6)
+
+
+# --------------------------------------------------------------------------
+# decorrelation - without it a contrastive loss on these features is a no-op
+# --------------------------------------------------------------------------
+
+def test_decorrelate_removes_a_shared_component():
+    """Raw ViT tokens sit at cosine ~0.99; a SupCon term over them gets no
+    gradient. Simulate that with features sharing a large constant offset."""
+    torch.manual_seed(0)
+    shared = torch.ones(1, 2, 64) * 50.0
+    features = shared + torch.randn(32, 2, 64)
+
+    before = flatten_level(features)
+    before_sim = (before @ before.t())
+    off_diagonal = ~torch.eye(32, dtype=torch.bool)
+    assert before_sim[off_diagonal].mean() > 0.9, "fixture should be collapsed"
+
+    after = decorrelate_level(features)
+    after_sim = (after @ after.t())[off_diagonal]
+    assert abs(after_sim.mean()) < 0.2
+    assert after_sim.std() > before_sim[off_diagonal].std() * 5
+
+
+def test_decorrelated_spread_is_comparable_across_levels():
+    """The condition that lets beta act on granularity rather than on the
+    levels' differing dimensionality (384 up to 3072).
+
+    The tokens of one image are strongly correlated with each other - they all
+    describe the same person - so pooling more regions does not average the
+    signal away. The fixture gives each image a dominant per-image component so
+    that it behaves like real data; with i.i.d. noise instead, spread would
+    fall as sqrt(regions) and this property genuinely would not hold.
+
+    Measured on a real batch of 128 the four levels span 0.089 to 0.092.
+    """
+    torch.manual_seed(0)
+    spec = spec_for_image((256, 128))
+    count = spec.rows * spec.cols
+    per_image = torch.randn(64, 1, 96)                  # identity signal
+    tokens = 20.0 + per_image + 0.3 * torch.randn(64, count, 96)
+    features = pyramid_features(tokens, spec, cls_token=tokens.mean(1))
+
+    off_diagonal = ~torch.eye(64, dtype=torch.bool)
+    spreads = []
+    for level_feature in features:
+        z = decorrelate_level(level_feature)
+        spreads.append(float((z @ z.t())[off_diagonal].std()))
+
+    assert min(spreads) > 0, spreads
+    assert max(spreads) / min(spreads) < 2.0, (
+        f"per-level spread varies too much to attribute beta to granularity: {spreads}"
+    )
+
+
+def test_decorrelate_output_is_unit_norm():
+    features = torch.randn(8, 4, 32) + 10.0
+    z = decorrelate_level(features)
+    assert torch.allclose(z.norm(dim=1), torch.ones(8), atol=1e-5)

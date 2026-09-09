@@ -179,16 +179,60 @@ ru ngủ.
 
 ---
 
-## 5. Backlog còn lại
+## 5. Backlog còn lại — thứ tự bắt buộc
+
+### AI-03b — Baseline CARGO ở batch 128 ⚠️ **LÀM TRƯỚC TIÊN**
+
+Train lại baseline CARGO (`L_ID + L_tri` thuần) ở P=16×K=8 = 128, mọi thứ khác
+giữ nguyên. Chạy ma trận, **xác nhận gap ground-only vẫn ~+17%**.
+
+Vì sao trước cả sampler: nhánh method sẽ chạy ở batch 128, nên mốc để đo
+"view-aware có co gap không" phải là gap-baseline **ở đúng batch đó**. Mốc
++17.20% hiện có đo ở batch 32. Batch đổi effective learning dynamics; nếu gap
+đổi theo thì mọi so sánh sau dựa trên mốc sai.
+
+**Kết quả sơ bộ** (epoch 30, **chưa hội tụ** — mAP 42.09% và còn leo):
+gap ground-only **+19.84%**, so với +17.20% ở batch 32 đã hội tụ.
+
+⚠️ **Không kết luận "gap phụ thuộc batch" từ con số này.** Đó là so **một điểm
+chưa hội tụ** với **một đường đã hội tụ** — đúng loại bất đối xứng đang cố
+tránh. Suy luận "batch 32 phẳng theo mAP nên batch 128 hội tụ sẽ ~19–20%" là
+**ngoại suy, không phải đo**: nó giả định chính cái cần chứng minh (batch 128
+cũng phẳng). Muốn claim đó thì phải dựng cả đường cong batch 128 rồi so
+đường-với-đường.
+
+**Và không nên theo đuổi claim đó.** Nó không phải trụ của bài (ba trụ: gap phụ
+thuộc benchmark, phân rã hai hiệu ứng, gap tan-hay-trơ theo supervision), mà
+chứng minh cho chặt thì tốn cả một đường cong nữa. Xử đúng: ghi vào
+**Limitations** — *"độ lớn gap đo được gắn với một cấu hình training cụ thể;
+chúng tôi không claim giá trị tuyệt đối là hằng số"*. Caveat này **bảo vệ** trụ
+chính: nếu ai hỏi "sao +17 mà không +20", ta đã tự nói trước rằng cái claim là
+**dấu và tính bền theo supervision**, không phải con số thập phân.
+
+**Mốc thực tế**: dùng gap-baseline ở batch 128 **sau khi hội tụ**, chỉ để so ba
+nhánh method với nhau.
+
+Rẻ: một run vài giờ, và nó khóa mốc trước khi xây gì lên trên.
 
 ### AI-04 — ViewBalancedPKSampler
 Kế thừa `RandomIdentitySampler` (`data.py:330`), mỗi ID lấy K/2 aerial + K/2
-ground. Dùng `cargo.binary_view_of_camera` (1–5 aerial, 6–13 ground).
+ground (P=16, K=8 → 4 aerial + 4 ground mỗi ID). Dùng
+`cargo.binary_view_of_camera` (1–5 aerial, 6–13 ground).
 
-**Verify bắt buộc trước khi train một epoch nào**: in tỉ lệ aerial/ground và số
-cặp cross-platform cùng ID trong vài batch đầu. Nếu batch không chứa cặp
-cross-platform cùng ID thì view-aware loss là **no-op** và mất ba ngày mới biết.
-QC đo trực tiếp trên batch thật, không tin log.
+### 🚧 GATE — đọc tỉ lệ batch bằng mắt trước khi viết một dòng loss
+
+Không thương lượng, và tách riêng khỏi AI-04 vì nó là **cửa chặn**, không phải
+một dòng mô tả task.
+
+In 3–5 batch đầu của sampler thật:
+- tỉ lệ aerial/ground mỗi batch
+- **số cặp cross-platform cùng ID** mỗi batch
+
+Dừng lại, đọc bằng mắt. Chỉ qua gate khi thấy cặp cross-platform cùng ID xuất
+hiện đủ nhiều.
+
+Nếu sampler sai → `L_MG` là **no-op** → mọi thứ sau đó vô nghĩa, **kể cả kết
+luận "method thất bại"**. Đây là lỗi #1 mà KB cảnh báo và là loại ngốn ba ngày.
 
 ### AI-06 — Multi-granularity loss
 
@@ -215,11 +259,21 @@ cặp, gradient finite.
 
 ### Ba nhánh — chạy cùng một lượt (không thương lượng)
 
-| nhánh | β | mục đích |
-|---|---|---|
-| baseline | — | `L_ID + L_tri` thuần |
-| **uniform-β** | 0.25 đều mọi tầng, mọi cặp | **phân biệt granularity thật với multi-scale** |
-| view-aware | bảng trên | đóng góp cần chứng minh |
+| nhánh | sampler | β | mục đích |
+|---|---|---|---|
+| baseline | **ViewBalancedPK** | — | `L_ID + L_tri` thuần |
+| **uniform-β** | **ViewBalancedPK** | 0.25 đều mọi tầng, mọi cặp | **phân biệt granularity thật với multi-scale** |
+| view-aware | **ViewBalancedPK** | bảng trên | đóng góp cần chứng minh |
+
+⚠️ **Cả ba nhánh dùng CÙNG ViewBalancedPKSampler**, kể cả baseline. Nếu baseline
+chạy `RandomIdentitySampler` thì nó khác hai nhánh kia ở **hai** thứ (loss *và*
+sampler) và thôi là control sạch. `ViewBalancedPKSampler` ép mỗi batch có cấu
+trúc cross-platform cân bằng — tức đổi **thống kê batch**, không chỉ đổi loss.
+Gap đã tỏ ra nhạy với batch size, nên gần như chắc cũng nhạy với thành phần
+batch. Chỉ khi ba nhánh chia đúng cùng phân bố batch thì "view-aware thắng" mới
+quy được về loss.
+
+Baseline đúng ở đây = *cùng sampler, cùng batch, chỉ `L_ID + L_tri`, không `L_MG`*.
 
 Uniform-β **không phải** tắt multi-granularity — vẫn 4 tầng, cùng tham số, cùng
 compute, cùng schedule. Chỉ bỏ **view-conditioning**. Nếu view-aware không thắng
@@ -228,15 +282,53 @@ muộn — reviewer sẽ buộc chạy.
 
 ---
 
-## 6. Hai điểm formulation chưa chốt
+## 5b. ⚠️ Phát hiện chặn `L_MG` — token thô không dùng trực tiếp được
 
-**(1) Softmax qua tầng có đúng không?** Nó ép Σβ = 1, nên tăng coarse *phải*
-giảm fine. Cách khác: β độc lập mỗi tầng (không chuẩn hóa), cho phép cross-platform
-tăng coarse mà không bỏ fine. Softmax làm ablation sạch hơn (ngân sách cố định
-→ gain không do loss lớn hơn) nhưng có thể quá cứng.
+Đo std-per-tầng của `s_ij` trên một batch thật 128 (checkpoint CARGO b128):
 
-**(2) `α` khởi tạo** chưa có cơ sở. Nếu `L_MG` khác scale `L_ID + L_tri` thì 1.0
-lệch.
+| tầng | dim | mean s | std s |
+|---|---|---|---|
+| whole | 384 | **0.9947** | 0.0008 |
+| half | 768 | 0.9932 | 0.0010 |
+| quarter | 1536 | 0.9931 | 0.0010 |
+| stripe | 3072 | 0.9930 | 0.0010 |
+
+**Mọi cặp có cosine ≈ 0.993.** Token ViT thô bị chi phối bởi một thành phần
+chung khổng lồ (norm ~49). Với `τ=0.07` thì mọi logit gần như bằng nhau →
+gradient ≈ 0 → **loss chạy, loss giảm, không học gì**. Đúng lớp lỗi thầm lặng
+đã cắn dự án ba lần.
+
+Retrieval hoạt động được là nhờ **BNNeck**: output eval của model có
+mean **0.0025**, std **0.088** — phân bố lành mạnh. `pyramid_features` của tôi
+pooling token thô, **bỏ qua BNNeck**.
+
+**Sửa**: `decorrelate_level()` — BatchNorm per-tầng trước khi normalize. Sau khi
+sửa, cả 4 tầng cho mean ≈ 0, std **0.089–0.092**.
+
+> Điểm quan trọng cho β: std **gần như bằng nhau qua các tầng** sau khi sửa
+> (0.089–0.092 với chiều từ 384 tới 3072). Nghĩa là β điều khiển **đúng
+> granularity**, không phải đang bù cho hiệu ứng chiều-khác-thang. Đây là điều
+> kiện tiên quyết để đọc kết quả ba nhánh — phải xong **trước**, không phải sau.
+
+`flatten_level()` giữ nguyên vì các probe frozen-feature đã công bố dùng nó, số
+của chúng phải reproduce được.
+
+## 6. Hai điểm formulation — đã chốt cách trả lời
+
+Cả hai **không chốt bằng lý thuyết**; trả lời bằng số ở batch đầu tiên.
+
+**(1) Softmax qua tầng — dùng cho lần chạy đầu.** Nó ép Σβ = 1, nên ngân sách β
+cố định. Đó chính là điều làm ablation sạch: nếu view-aware thắng uniform-β,
+gain **không thể** đổ cho "loss lớn hơn" — cả hai tiêu cùng một ngân sách. Đây
+là bản trả lời câu hỏi granularity-hay-capacity sạch nhất.
+
+β độc lập (không chuẩn hóa) để làm **biến thể thử sau**, chỉ khi softmax tỏ ra
+quá cứng — dấu hiệu: *cả* view-aware lẫn uniform-β đều không nhúc nhích gap.
+Lúc đó mới cần nới ngân sách.
+
+**(2) `α` chốt bằng số, không phỏng đoán.** In `L_MG` và `L_ID + L_tri` ở batch
+đầu, chọn α cho hai vế **cùng scale**. Đó là cơ sở đang thiếu, và nó là một phép
+đo chứ không phải một lựa chọn. Ablate {0.3, 1.0, 3.0} quanh giá trị đó.
 
 ---
 
@@ -255,9 +347,31 @@ lệch.
 | `reid_advance/hierarchy/` | view_map, granularity, vss |
 | `tests/` (75 test) | giả định dữ liệu, view map, granularity, VSS, CARGO |
 
-**Cấu hình đã chốt**: ViT-S/16, 256×128, batch 32 (giữ để so được với
-AG-ReID.v2 — VRAM còn dư nhiều nhưng đổi batch là đổi công thức), AMP bật,
-CARGO 30 epoch (trần của công thức).
+### Hai chế độ batch — đừng gộp làm một
+
+| chế độ | batch | vì sao | trạng thái |
+|---|---|---|---|
+| **analysis** (hai đường cong) | **32** (P=8×K=4) | cần cùng công thức để hai dataset so được | ✅ **đã chạy xong** — batch 32 đã phục vụ xong vai trò |
+| **method** (3 nhánh trên CARGO) | **128** (P=16×K=8) | contrastive cần negative; batch 32 bóp cổ chính loss đang test | chưa chạy |
+
+**Vì sao method KHÔNG được dùng batch 32.** `L_MG` là contrastive: ma trận
+similarity chỉ tồn tại trong **một** batch, gradient accumulation không cộng dồn
+được (xem §1 plan cũ — vẫn đúng). Batch 32 view-balanced → P=8, K=4 → mỗi ID chỉ
+2 aerial + 2 ground. Nếu method thất bại ở batch đó, ta **không phân biệt được**
+"granularity vô dụng" với "contrastive đói negative" — một biến nhiễu tự rước.
+
+**Điều kiện so sánh sạch**: ba nhánh method (baseline / uniform-β / view-aware)
+phải **cùng batch với nhau**. Chúng *không* cần cùng batch với analysis-curve —
+đó là hai thí nghiệm trả lời hai câu hỏi khác nhau. AI-00 đã đo: batch 128 chỉ
+tốn 3.35 GiB / 12 GiB.
+
+**Hệ quả bắt buộc**: baseline CARGO phải được train lại ở batch 128 và **xác
+nhận gap vẫn ~+17%** trước khi đo bất cứ thứ gì. Nếu batch đổi làm gap đổi, mốc
++17.20% (đo ở batch 32) không còn là mốc đúng, và "view-aware co gap so với
+baseline" sẽ là so với sai baseline.
+
+**Cấu hình chung**: ViT-S/16, 256×128, AMP bật, CARGO 30 epoch (trần của công
+thức ở batch 32 — cần kiểm lại trần ở batch 128).
 
 ---
 
