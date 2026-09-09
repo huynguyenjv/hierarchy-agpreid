@@ -96,10 +96,15 @@ class TransReIDSmall(nn.Module):
         x = self.encoder.blocks(x)
         return self.encoder.norm(x)
 
-    def forward(self, images, camera_ids=None):
+    def forward(self, images, camera_ids=None, tokens=None):
+        """``tokens`` lets a caller that already ran the encoder reuse its
+        output; the multi-granularity branch needs the patch tokens as well as
+        the heads, and running the backbone twice per step would double the
+        cost of every experiment using it."""
         if camera_ids is None:
             camera_ids = torch.zeros(images.size(0), device=images.device, dtype=torch.long)
-        tokens = self._forward_tokens(images, camera_ids)
+        if tokens is None:
+            tokens = self._forward_tokens(images, camera_ids)
         global_raw = tokens[:, 0]
         global_bn = self.global_bn(global_raw)
 
